@@ -54,5 +54,14 @@ creative = createCreativePanel(ui, {
   onHotbarClick: (i, button) => { if (button === 2) game.inv.hotbar[i] = null; else game.inv.selected = i; game.afterInv(); },
   onSurvival: () => { game.closePanel(); game.openPanel('inv'); },
 });
-game.attachMenus({ pause, death, loading, creative, onQuit: () => show(title) });
+// ENTER VR from the menus: the menus can't be seen in the headset, so jump straight into
+// the most recently played world (or a fresh one in the first free slot).
+const startForVR = () => {
+  const slots = listSlots(), saved = slots.filter(Boolean).sort((a, b) => (b.played || 0) - (a.played || 0));
+  show(null); sfx.unlock();
+  if (saved.length) { const data = readSlot(saved[0].slot); game.startWorld({ seed: data.seed, name: data.name, slot: saved[0].slot, creative: data.creative, data }); return; }
+  const free = Math.max(0, slots.indexOf(null));
+  game.startWorld({ seed: seedFromString(String(Date.now())), name: 'VR World', slot: free, creative: false });
+};
+game.attachMenus({ pause, death, loading, creative, onQuit: () => show(title), onVRStart: startForVR });
 title.open();

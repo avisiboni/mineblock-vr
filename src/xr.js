@@ -59,6 +59,7 @@ export class XRSupport {
     g.hint.style.display = 'none';
     if (g.camMode !== 'fp') g.cams.setMode('fp');
     g.closePanelSilently();
+    if (!g.playing) g.menus.onVRStart?.();
     if (g.paused) { g.paused = false; g.menus.pause?.close(); g.last = performance.now(); }
     this.prevDist = g.renderDist; g.setRenderDist(Math.min(g.renderDist, 6));
   }
@@ -89,6 +90,7 @@ export class XRSupport {
   update(dt) {
     if (!this.active) return;
     const g = this.g, inp = g.input, p = g.player;
+    if (g.camMode !== 'fp') g.cams.setMode('fp');
     // held item rides on the right controller instead of floating in front of the face
     const vm = g.viewmodel, right = this.hands.right;
     if (right && vm.holder.parent !== right.grip) { right.grip.add(vm.holder); vm.holder.scale.setScalar(0.45); vm.holder.position.set(-0.22, 0.18, 0.3); }
