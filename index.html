@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Mineblock</title>
+<meta name="description" content="Mineblock — a browser voxel sandbox: mine, craft, build, and brave the Nether.">
+<meta name="theme-color" content="#3a2a1e">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Mineblock">
+<meta property="og:description" content="A Minecraft-style voxel sandbox in your browser: mine, craft, swim, freeze, build a portal and brave the Nether. First-person or top-down.">
+<!-- After deploying, replace with the absolute URL, e.g. https://<user>.github.io/<repo>/og.jpg -->
+<meta property="og:image" content="https://avisiboni.github.io/mineblock-vr/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23866043'/%3E%3Crect width='16' height='5' fill='%235d9b3a'/%3E%3Crect x='2' y='7' width='2' height='2' fill='%236a4a32'/%3E%3Crect x='9' y='10' width='3' height='2' fill='%239c7452'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="src/ui.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+  "./src/blockmesh.js": "./src/blockmesh.js?v=2",
+  "./src/blocks.js": "./src/blocks.js?v=2",
+  "./src/characters.js": "./src/characters.js?v=2",
+  "./src/chunkmesh.js": "./src/chunkmesh.js?v=2",
+  "./src/entities.js": "./src/entities.js?v=2",
+  "./src/furnace.js": "./src/furnace.js?v=2",
+  "./src/game.js": "./src/game.js?v=2",
+  "./src/input.js": "./src/input.js?v=2",
+  "./src/interact.js": "./src/interact.js?v=2",
+  "./src/inventory.js": "./src/inventory.js?v=2",
+  "./src/light.js": "./src/light.js?v=2",
+  "./src/main.js": "./src/main.js?v=2",
+  "./src/menus.js": "./src/menus.js?v=2",
+  "./src/mobs.js": "./src/mobs.js?v=2",
+  "./src/noise.js": "./src/noise.js?v=2",
+  "./src/physics.js": "./src/physics.js?v=2",
+  "./src/player.js": "./src/player.js?v=2",
+  "./src/portal.js": "./src/portal.js?v=2",
+  "./src/save.js": "./src/save.js?v=2",
+  "./src/sfx.js": "./src/sfx.js?v=2",
+  "./src/sim.js": "./src/sim.js?v=2",
+  "./src/sky.js": "./src/sky.js?v=2",
+  "./src/streaming.js": "./src/streaming.js?v=2",
+  "./src/tables.js": "./src/tables.js?v=2",
+  "./src/textures.js": "./src/textures.js?v=2",
+  "./src/ui.js": "./src/ui.js?v=2",
+  "./src/view.js": "./src/view.js?v=2",
+  "./src/world.js": "./src/world.js?v=2",
+  "./src/worldgen.js": "./src/worldgen.js?v=2",
+  "./src/xr.js": "./src/xr.js?v=2"
+} }
+</script>
+</head>
+<body>
+<!-- The game renders into this canvas; all UI lives in #ui as DOM overlays. -->
+<canvas class="game" id="game"></canvas>
+<div id="ui"></div>
+<div class="touch" id="touch">
+  <div class="pad"><b style="left:33%;top:0" data-key="KeyW"></b><b style="left:0;top:33%" data-key="KeyA"></b><b style="left:66%;top:33%" data-key="KeyD"></b><b style="left:33%;top:66%" data-key="KeyS"></b></div>
+  <div class="jump" data-key="Space"></div>
+  <div class="tbar">
+    <b data-key="Escape">II</b><b data-key="KeyE">INV</b><b data-key="F5">CAM</b><b data-wheel="-1">&lt;</b><b data-wheel="1">&gt;</b><b data-key="ShiftLeft">SNK</b>
+  </div>
+</div>
+<script type="module" src="src/main.js?v=2"></script>
+</body>
+</html>
