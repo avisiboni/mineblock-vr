@@ -11,6 +11,7 @@ import { Noise, mulberry32, hash3 } from './noise.js';
 import { BLOCK_ID } from './blocks.js';
 
 export const CH = 16, HT = 128, SEA = 62;
+export const END_Y = 60, END_RADIUS = 72, PORTAL_REGION = 20;
 const B = BLOCK_ID;
 const { air, stone, dirt, grass, snow_grass, snow, sand, gravel, bedrock, oak_log, oak_leaves, water, ice, lava } = B;
 
@@ -48,7 +49,74 @@ export class Generator {
 
   generateChunk(chunk, dimension = 'overworld') {
     if (dimension === 'nether') return this.generateNether(chunk);
+    if (dimension === 'end') return this.generateEnd(chunk);
     return this.generateOverworld(chunk);
+  }
+
+  // ---------------- End portal rooms: one per 20x20-chunk region, buried in a single chunk
+  portalRoomChunk(rx, rz) {
+    const R = PORTAL_REGION;
+    return { cx: rx * R + 2 + ((hash3(this.seed, rx, 4242, rz) * (R - 4)) | 0), cz: rz * R + 2 + ((hash3(this.seed, rx, 4243, rz) * (R - 4)) | 0) };
+  }
+  // centre of the nearest portal room to (x, z) (what an Eye of Ender flies toward)
+  portalRoomNear(x, z) {
+    const R = PORTAL_REGION * CH, rx0 = Math.floor(x / R), rz0 = Math.floor(z / R);
+    let best = null, bd = Infinity;
+    for (let rz = rz0 - 1; rz <= rz0 + 1; rz++) for (let rx = rx0 - 1; rx <= rx0 + 1; rx++) {
+      const c = this.portalRoomChunk(rx, rz), px = c.cx * CH + 8, pz = c.cz * CH + 8, d = (px - x) ** 2 + (pz - z) ** 2;
+      if (d < bd) { bd = d; best = { x: px, z: pz }; }
+    }
+    return best;
+  }
+  // 12x12 cobblestone room: a ring of 12 End Portal Frames over a lava pit, torches on the walls
+  buildPortalRoom(blocks, surfaceH, cx, cz) {
+    const fy = Math.max(8, Math.min(26, surfaceH - 16));   // floor level
+    const put = (x, y, z, id) => { blocks[x + 16 * z + 256 * y] = id; };
+    for (let x = 2; x <= 13; x++) for (let z = 2; z <= 13; z++) for (let y = fy; y <= fy + 7; y++) {
+      const wall = x === 2 || x === 13 || z === 2 || z === 13 || y === fy || y === fy + 7;
+      put(x, y, z, wall ? (hash3(this.seed, cx * 16 + x, y, cz * 16 + z) < 0.25 ? B.stone : B.cobblestone) : air);
+    }
+    for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+      const ax = Math.abs(dx), az = Math.abs(dz), x = 8 + dx, z = 8 + dz;
+      if (Math.max(ax, az) === 2 && Math.min(ax, az) <= 1) {
+        const eye = hash3(this.seed, cx * 16 + x, 77, cz * 16 + z) < 0.1;
+        put(x, fy + 1, z, eye ? B.end_portal_frame_filled : B.end_portal_frame);
+      } else if (ax <= 1 && az <= 1) put(x, fy, z, lava);
+    }
+    for (const [x, z] of [[3, 8], [12, 8], [8, 3], [8, 12]]) put(x, fy + 3, z, B.torch);
+  }
+
+  // ---------------- The End: one big end-stone island floating in the void, obsidian pillars,
+  // and a bedrock exit portal in the middle (always open: step in to go home)
+  generateEnd(chunk) {
+    const { cx, cz, blocks } = chunk;
+    const ox = cx * CH, oz = cz * CH, TOP = END_Y;
+    for (let lz = 0; lz < CH; lz++) for (let lx = 0; lx < CH; lx++) {
+      const wx = ox + lx, wz = oz + lz, d = Math.hypot(wx + 0.5, wz + 0.5);
+      const edge = END_RADIUS + this.nMisc.noise2(wx * 0.03, wz * 0.03) * 10;
+      if (d < edge) {
+        const k = d / edge;
+        const top = d < 10 ? TOP : TOP + Math.round(this.nHill.noise2(wx * 0.04, wz * 0.04) * 2 * k);
+        const bottom = Math.round(TOP - 4 - Math.sqrt(Math.max(0, 1 - k * k)) * 34 + this.nDetail.noise2(wx * 0.1, wz * 0.1) * 3);
+        for (let y = Math.max(1, bottom); y <= top; y++) blocks[lx + 16 * lz + 256 * y] = B.end_stone;
+      }
+      // obsidian pillars on a ring around the centre
+      for (let i = 0; i < 10; i++) {
+        const a = i / 10 * Math.PI * 2, r = 2 + (i % 3), h = TOP + 14 + ((hash3(this.seed, i, 31, 7) * 22) | 0);
+        if (Math.hypot(wx + 0.5 - Math.cos(a) * 40, wz + 0.5 - Math.sin(a) * 40) <= r + 0.3) {
+          for (let y = TOP - 6; y <= h; y++) blocks[lx + 16 * lz + 256 * y] = B.obsidian;
+          blocks[lx + 16 * lz + 256 * (h + 1)] = B.bedrock;
+        }
+      }
+      // exit portal: bedrock bowl, portal surface, 2x2 bedrock pillar with torches
+      if (d <= 3.6) {
+        blocks[lx + 16 * lz + 256 * TOP] = B.bedrock;
+        if (d > 2.6) blocks[lx + 16 * lz + 256 * (TOP + 1)] = B.bedrock;
+        else if (d < 0.8) { for (let y = TOP + 1; y <= TOP + 4; y++) blocks[lx + 16 * lz + 256 * y] = B.bedrock; }
+        else blocks[lx + 16 * lz + 256 * (TOP + 1)] = B.end_portal;
+      }
+    }
+    chunk.maxY = HT - 1;
   }
 
   generateOverworld(chunk) {
@@ -122,6 +190,10 @@ export class Generator {
         }
       }
     }
+
+    // --- End portal room (after caves and ores so nothing cuts into it)
+    const room = this.portalRoomChunk(Math.floor(cx / PORTAL_REGION), Math.floor(cz / PORTAL_REGION));
+    if (room.cx === cx && room.cz === cz) this.buildPortalRoom(blocks, at(8, 8).h, cx, cz);
 
     // --- trees: candidate origins from chunk + margin, deterministic by position
     for (let lz = -2; lz < CH + 2; lz++) for (let lx = -2; lx < CH + 2; lx++) {

@@ -13,7 +13,7 @@ import { mulberry32 } from './noise.js';
 export const DAY_LENGTH = 1200;
 const col = (h) => new THREE.Color(h);
 const DAY_SKY = col(0x7fb6ff), NIGHT_SKY = col(0x070b22), DUSK = col(0xff9a55);
-const NETHER_FOG = col(0x3a0a0a);
+const NETHER_FOG = col(0x3a0a0a), END_SKY = col(0x140c1e);
 
 function radialTexture(inner, outer, square = false) {
   const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -65,7 +65,16 @@ export class Sky {
 
   update({ dim, time, camPos, renderDist, eyeMedium = 'air', dt = 0 }) {
     const fog = this.scene.fog, cam = this.camera;
-    if (dim === 'nether') {
+    if (dim === 'end') {
+      // no sun or moon, a dim purple void full of stars
+      LIGHT.uDay.value = 0; LIGHT.uMin.value = 0.42;
+      this.scene.background = END_SKY; fog.color.copy(END_SKY);
+      fog.near = 30; fog.far = Math.max(60, renderDist * 16);
+      this.group.visible = true; this.group.position.copy(camPos);
+      this.sun.visible = this.moon.visible = false; this.starMat.opacity = 0.8;
+      this.clouds.visible = false;
+      this.ambient.intensity = 0.9; this.dirLight.intensity = 0.3; this.dayFactor = 0.6;
+    } else if (dim === 'nether') {
       LIGHT.uDay.value = 0; LIGHT.uMin.value = 0.3;
       this.scene.background = NETHER_FOG; fog.color.copy(NETHER_FOG);
       fog.near = 8; fog.far = Math.min(renderDist * 16, 80);
@@ -81,7 +90,7 @@ export class Sky {
       this._c.lerp(DUSK, dusk * 0.45);
       this.scene.background = this._c; fog.color.copy(this._c);
       fog.far = renderDist * 16 - 6; fog.near = fog.far * 0.45;
-      this.group.visible = true; this.group.position.copy(camPos);
+      this.group.visible = true; this.group.position.copy(camPos); this.sun.visible = this.moon.visible = true;
       this.sun.position.set(Math.cos(ang) * 300, sunH * 300, 60); this.moon.position.set(-Math.cos(ang) * 300, -sunH * 300, -60);
       this.starMat.opacity = Math.max(0, Math.min(1, -sunH * 3));
       this.clouds.visible = true;

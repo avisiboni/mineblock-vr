@@ -50,12 +50,12 @@ export function serialize(g) {
   return {
     v: 1, name: g.worldName, seed: g.world.seed, created: g.created, played: Date.now(), creative: g.creative, time: g.time, dim: g.dimName, camMode: g.camMode,
     renderDist: g.renderDist,
-    player: { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, hp: p.hp, hunger: p.hunger, xp: p.xp, spawn: p.spawn },
+    player: { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, hp: p.hp, hunger: p.hunger, xp: p.xp, spawn: p.spawn, worldSpawn: p.worldSpawn },
     inv: g.inv.toJSON(),
-    dims: { overworld: dimToJSON(g.world.dims.overworld), nether: dimToJSON(g.world.dims.nether) },
+    dims: Object.fromEntries(Object.entries(g.world.dims).map(([k, d]) => [k, dimToJSON(d)])),
   };
 }
-export function applyToWorld(world, data) { dimFromJSON(world.dims.overworld, data.dims?.overworld); dimFromJSON(world.dims.nether, data.dims?.nether); }
+export function applyToWorld(world, data) { for (const k in world.dims) dimFromJSON(world.dims[k], data.dims?.[k]); }
 
 export function saveGame(g) {
   if (g.slot == null) return false;

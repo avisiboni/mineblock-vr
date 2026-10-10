@@ -15,6 +15,7 @@
 > | 7 Polish | done (see limits) | `sky.js`, `sfx.js`, `entities.js`, `view.js` |
 > | 8 Lighting | done | `light.js`, `chunkmesh.js` |
 > | 9 Save / load / website | done | `save.js`, `menus.js`, `main.js`, `.github/workflows/pages.yml` |
+> | 10 The End, animals, beds | done | `end.js`, `beds.js`, `worldgen.js` (`generateEnd`, portal rooms), `mobs.js`, `characters.js` |
 >
 > ### Controls
 > | Key | Action |
@@ -48,6 +49,18 @@
 > * **Mobs** use the same AABB physics as the player. Wisps fire slow fireballs (6 damage). Piglins are always hostile (no gold-armour rule).
 > * **Food.** `porkchop` / `cooked_porkchop` items were added (pig drop, smeltable) so hunger has a purpose.
 > * The game **auto-pauses when the tab is hidden** and on pointer-lock loss.
+>
+> * **The End (phase 10).** New blocks are appended to `BLOCKS` (saves store numeric ids, never insert in the middle). Portal rooms: one per
+>   20x20-chunk region, built inside one chunk by `Generator.buildPortalRoom`; `portalRoomNear` is what a thrown Eye of Ender flies toward.
+>   The End is one island (radius ~72) at y 60 with 10 obsidian pillars and a bedrock exit portal at (0,0); arrival builds a 5x5 obsidian
+>   platform at (64, 60, 0). No Ender Dragon yet. `switchDimension(name, x, y, z, silent, how)` takes `how` = `'portal' | 'end' | 'spawn'`.
+> * **Beds** are two blocks (`bed_foot` + `bed_head`, meta = facing) with `height: 0.5625`; `tables.HEIGHT` lowers the top face in the mesher
+>   and the collision top in `physics.sweep`. The respawn point is `player.spawn` (with `.bed`), the original spawn is `player.worldSpawn`.
+> * **Animals**: cow, sheep, chicken spawn with pigs on grass in daylight and run when hit. Endermen are neutral (`neutral: true`), spawn in
+>   the End and rarely at night, teleport when hurt and drop ender pearls.
+>
+> * **VR inventory** (`xrinv.js`): a canvas-textured panel in the XR dolly, picked with the right controller ray; it sets `panelOpen = 'vr'`
+>   and reuses `inv.click` / `furnaceClick`. A hotbar + hearts strip rides on the left grip.
 >
 > ### Known limits / ideas for next steps
 > * Water and lava are static (no flow, no buckets). TNT is inert. There is no fire block and no armour items (the armour bar is hidden).

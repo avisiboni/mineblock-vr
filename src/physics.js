@@ -4,7 +4,7 @@
 // Entity shape: { x, y, z, w, h }  (x,z = centre, y = feet).  Solid cells are
 // those with SOLID[id]; unloaded chunks read as stone so nothing falls out.
 // ============================================================================
-import { SOLID, LIQUID } from './tables.js';
+import { SOLID, LIQUID, HEIGHT } from './tables.js';
 import { BLOCK_ID } from './blocks.js';
 
 const EPS = 1e-4;
@@ -21,9 +21,12 @@ function sweep(dim, e, axis, a) {
   if (a > 0) hi[axis] = Math.floor(max[axis] + a - EPS); else lo[axis] = Math.floor(min[axis] + a + EPS);
   let limit = Math.abs(a);
   for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++) {
-    if (!SOLID[dim.getId(x, y, z)]) continue;
+    const id = dim.getId(x, y, z);
+    if (!SOLID[id]) continue;
+    const top = y + HEIGHT[id];                       // beds are lower than a full block
+    if (axis !== 1 && min[1] >= top - EPS) continue;  // standing on it, not walking into it
     const c = [x, y, z][axis];
-    const dist = a > 0 ? c - max[axis] : min[axis] - (c + 1);
+    const dist = a > 0 ? c - max[axis] : min[axis] - (axis === 1 ? top : c + 1);
     if (dist < -EPS) continue;           // behind us / already overlapping
     if (dist < limit) limit = dist;
   }

@@ -2,7 +2,7 @@
 // Mineblock — world storage: chunks, dimensions, block access, edits
 // ----------------------------------------------------------------------------
 //   Chunk      16x128x16 block ids + sky/block light nibbles + meta
-//   Dimension  chunk map for one dimension ('overworld' | 'nether')
+//   Dimension  chunk map for one dimension ('overworld' | 'nether' | 'end')
 //   World      both dimensions + seed
 // getBlock() returns a block KEY string (plugs into the old mesher API);
 // getId() returns the numeric id (hot loops). Unloaded chunks read as stone so
@@ -145,6 +145,6 @@ export class World {
   constructor(seed) {
     this.seed = seed | 0;
     this.gen = new Generator(this.seed);
-    this.dims = { overworld: new Dimension('overworld', this.gen), nether: new Dimension('nether', this.gen) };
+    this.dims = { overworld: new Dimension('overworld', this.gen), nether: new Dimension('nether', this.gen), end: new Dimension('end', this.gen) };
   }
 }

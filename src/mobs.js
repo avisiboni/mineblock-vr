@@ -5,7 +5,8 @@
 //   mobs.update(dt, time)        spawn / move / attack / animate
 //   mobs.raycast(origin, dir, max) -> { mob, t } | null
 //   mobs.attack(mob, heldStack)  player hits a mob
-// Overworld: pig (day, grass), zombie (dark places).  Nether: piglin, wisp.
+// Overworld: pig, cow, sheep, chicken (day, grass), zombie (dark places), enderman (rare, dark).
+// Nether: piglin, wisp.  End: enderman.  Endermen are neutral until hit; farm animals run when hit.
 // Uses the rigs and animations from characters.js and the shared physics.
 // ============================================================================
 import * as THREE from 'three';
@@ -16,9 +17,15 @@ import { OPAQUE, LIQUID } from './tables.js';
 import { sfx } from './sfx.js';
 import { Sky } from './sky.js';
 
-const MAX_MOBS = 20;
-const LIMITS = { pig: 8, zombie: 10, piglin: 6, wisp: 4 };
-const DROPS = { pig: ['porkchop', 1, 3], piglin: ['gold_ingot', 1, 1], wisp: ['blaze_rod', 1, 1] };
+const MAX_MOBS = 26;
+const LIMITS = { pig: 5, cow: 5, sheep: 5, chicken: 5, zombie: 10, piglin: 6, wisp: 4, enderman: 6 };
+const ANIMALS = ['pig', 'cow', 'sheep', 'chicken'];
+// kind -> [[item, min, max], ...]
+const DROPS = {
+  pig: [['porkchop', 1, 3]], cow: [['raw_beef', 1, 3], ['leather', 0, 2]], sheep: [['white_wool', 1, 2], ['raw_mutton', 1, 2]],
+  chicken: [['raw_chicken', 1, 1], ['feather', 0, 2]], piglin: [['gold_ingot', 1, 1]], wisp: [['blaze_rod', 1, 1]], enderman: [['ender_pearl', 1, 1]],
+};
+const VOICE = { pig: ['pig', 1], cow: ['pig', 0.55], sheep: ['pig', 1.35], chicken: ['pig', 2.1], enderman: ['zombie', 0.6] };
 const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
 
 export class Mobs {
@@ -41,7 +48,8 @@ export class Mobs {
     rig.material.depthTest = true;
     rig.group.position.set(x, y, z); this.group.add(rig.group);
     const m = { kind, def, rig, x, y, z, vx: 0, vy: 0, vz: 0, w: def.width, h: def.height, heading: Math.random() * 6.28, hp: def.hp || 10, maxHp: def.hp || 10,
-      wanderT: 0, tx: x, tz: z, moving: false, attackCd: 1, attackAnim: 0, hurt: 0, dying: 0, despawnT: 0, fireT: 2 + Math.random() * 2, onGround: false, head: 0 };
+      wanderT: 0, tx: x, tz: z, moving: false, attackCd: 1, attackAnim: 0, hurt: 0, dying: 0, despawnT: 0, fireT: 2 + Math.random() * 2, onGround: false, head: 0,
+      angry: false, panic: 0 };
     this.list.push(m);
     return m;
   }
@@ -61,8 +69,21 @@ export class Mobs {
       if (y <= 1 || y <= Math.floor(p.y) - 24) return;
       const floor = BLOCK_LIST[dim.getId(x, y, z)];
       const light = Math.max(dim.getSky(x, y + 1, z) / 15 * bright, dim.getBlockLight(x, y + 1, z) / 15);
-      if ((floor === 'grass' || floor === 'snow_grass') && light > 0.7 && bright > 0.6 && this.count('pig') < LIMITS.pig) this.spawnAt('pig', x + 0.5, y + 1, z + 0.5);
+      const animal = ANIMALS[(Math.random() * ANIMALS.length) | 0];
+      if ((floor === 'grass' || floor === 'snow_grass') && light > 0.7 && bright > 0.6) {
+        // animals come in small groups
+        for (let i = 0, n = 1 + ((Math.random() * 3) | 0); i < n && this.count(animal) < LIMITS[animal]; i++) {
+          const ax = x + ((Math.random() * 5) | 0) - 2, az = z + ((Math.random() * 5) | 0) - 2;
+          if (OPAQUE[dim.getId(ax, y, az)] && !OPAQUE[dim.getId(ax, y + 1, az)] && !OPAQUE[dim.getId(ax, y + 2, az)]) this.spawnAt(animal, ax + 0.5, y + 1, az + 0.5);
+        }
+      } else if (light < 0.3 && Math.random() < 0.08 && this.count('enderman') < 2) { if (!OPAQUE[dim.getId(x, y + 3, z)]) this.spawnAt('enderman', x + 0.5, y + 1, z + 0.5); }
       else if (light < 0.3 && this.count('zombie') < LIMITS.zombie) this.spawnAt('zombie', x + 0.5, y + 1, z + 0.5);
+    } else if (dim.name === 'end') {
+      if (this.count('enderman') >= LIMITS.enderman) return;
+      let y = Math.min(110, Math.floor(p.y) + 20);
+      for (; y > Math.max(2, Math.floor(p.y) - 24); y--) if (OPAQUE[dim.getId(x, y, z)] && !OPAQUE[dim.getId(x, y + 1, z)] && !OPAQUE[dim.getId(x, y + 2, z)] && !OPAQUE[dim.getId(x, y + 3, z)]) break;
+      if (y <= Math.max(2, Math.floor(p.y) - 24)) return;
+      if (BLOCK_LIST[dim.getId(x, y, z)] === 'end_stone') this.spawnAt('enderman', x + 0.5, y + 1, z + 0.5);
     } else {
       if (Math.random() < 0.3 && this.count('wisp') < LIMITS.wisp) {
         const y = 40 + Math.floor(Math.random() * 60);
@@ -105,12 +126,31 @@ export class Mobs {
     sfx.play('hurt');
     if (def?.tool && def.durability && !g.creative) { g.inv.damageHeld(1); g.refreshHotbar(); }
     m.target = true;   // retaliate / flee handled in AI
+    if (m.def.neutral) m.angry = true;
+    else if (!m.def.hostile) m.panic = 4;
     if (m.hp <= 0 && !m.dying) { m.dying = 0.001; this.drop(m); if (!g.creative) g.addXP(0.2); }
+    else if (m.kind === 'enderman' && Math.random() < 0.4) this.teleport(m);
+  }
+  // endermen blink away when hurt: try a few spots within 8 blocks
+  teleport(m) {
+    const dim = this.g.dim;
+    for (let i = 0; i < 12; i++) {
+      const x = Math.floor(m.x + (Math.random() - 0.5) * 16), z = Math.floor(m.z + (Math.random() - 0.5) * 16);
+      for (let y = Math.floor(m.y) + 4; y > Math.floor(m.y) - 6; y--) {
+        if (OPAQUE[dim.getId(x, y, z)] && !OPAQUE[dim.getId(x, y + 1, z)] && !OPAQUE[dim.getId(x, y + 2, z)] && !OPAQUE[dim.getId(x, y + 3, z)] && !LIQUID[dim.getId(x, y + 1, z)]) {
+          this.g.particles.portal(m.x, m.y + 1.5, m.z, m.x, m.y + 1, m.z);
+          m.x = x + 0.5; m.y = y + 1; m.z = z + 0.5; m.vx = m.vy = m.vz = 0;
+          sfx.play('portal', 2); return;
+        }
+      }
+    }
   }
   drop(m) {
-    const d = DROPS[m.kind]; if (!d || this.g.creative) return;
-    const n = d[1] + ((Math.random() * (d[2] - d[1] + 1)) | 0);
-    this.g.drops.spawn(d[0], n, m.x, m.y + 0.5, m.z, 0, 3, 0);
+    if (this.g.creative) return;
+    for (const d of DROPS[m.kind] || []) {
+      const n = d[1] + ((Math.random() * (d[2] - d[1] + 1)) | 0);
+      if (n > 0) this.g.drops.spawn(d[0], n, m.x, m.y + 0.5, m.z, (Math.random() - 0.5) * 1.5, 3, (Math.random() - 0.5) * 1.5);
+    }
   }
 
   canSee(a, b) {
@@ -139,13 +179,18 @@ export class Mobs {
       }
       const def = m.def, flying = def.flies;
       const eye = { x: m.x, y: m.y + def.eyeHeight, z: m.z }, pe = { x: p.x, y: p.y + 1.4, z: p.z };
-      const near = !p.dead && def.hostile && dist < (flying ? 24 : 16) && Math.abs(m.y - p.y) < 12 && !g.creative && this.canSee(eye, pe);
+      m.panic = Math.max(0, m.panic - dt);
+      const near = !p.dead && (def.hostile || m.angry) && dist < (flying ? 24 : 16) && Math.abs(m.y - p.y) < 12 && !g.creative && this.canSee(eye, pe);
       let wantX = 0, wantZ = 0, speed = def.speed;
       if (near) {
         const dx = p.x - m.x, dz = p.z - m.z, l = Math.hypot(dx, dz) || 1;
         wantX = dx / l; wantZ = dz / l;
         m.tx = p.x; m.tz = p.z;
         if (flying) { const keep = 4; if (l < keep) { wantX *= -0.3; wantZ *= -0.3; } }
+      } else if (m.panic > 0) {
+        // run away from the player, changing direction now and then
+        const dx = m.x - p.x, dz = m.z - p.z, l = Math.hypot(dx, dz) || 1, wob = Math.sin(time * 2 + m.heading) * 0.6;
+        wantX = dx / l * Math.cos(wob) - dz / l * Math.sin(wob); wantZ = dz / l * Math.cos(wob) + dx / l * Math.sin(wob); speed *= 1.8;
       } else {
         m.wanderT -= dt;
         if (m.wanderT <= 0) { m.wanderT = 3 + Math.random() * 3; if (Math.random() < 0.7) { m.tx = m.x + (Math.random() - 0.5) * 16; m.tz = m.z + (Math.random() - 0.5) * 16; } else { m.tx = m.x; m.tz = m.z; } }
@@ -162,7 +207,7 @@ export class Mobs {
         m.vy += Math.max(-10 * dt, Math.min(10 * dt, (targetY - m.y) * 1.5 - m.vy));
         if (!near) m.vy += Math.sin(time * 1.3 + m.x) * 0.02;
       } else if (inLiq) m.vy = Math.min(2, m.vy + 20 * dt);
-      else m.vy = Math.max(-60, m.vy - 32 * dt);
+      else m.vy = Math.max(m.kind === 'chicken' ? -3 : -60, m.vy - 32 * dt);   // chickens flutter down
       moveBox(dim, m, m.vx * dt, m.vy * dt, m.vz * dt);
       if (m.hitY) m.vy = 0;
       if (!flying && m.onGround && (m.hitX || m.hitZ) && wantMove) m.vy = 8.2;
@@ -180,15 +225,15 @@ export class Mobs {
       }
       // presentation
       const l01 = Math.max(dim.getSky(Math.floor(m.x), Math.floor(m.y + 1), Math.floor(m.z)) / 15 * g.sky.dayFactor, dim.getBlockLight(Math.floor(m.x), Math.floor(m.y + 1), Math.floor(m.z)) / 15);
-      const b = 0.4 + 0.6 * Math.min(1, l01 + (dim.name === 'nether' ? 0.3 : 0));
+      const b = 0.4 + 0.6 * Math.min(1, l01 + (dim.name !== 'overworld' ? 0.3 : 0));
       if (m.hurt > 0) m.rig.material.color.setRGB(1, 0.35 + b * 0.0, 0.35); else m.rig.material.color.setScalar(b);
       m.rig.group.position.set(m.x, m.y, m.z);
       m.rig.group.rotation.y = m.heading;
       m.rig.group.rotation.z = 0;
       const toP = Math.atan2(p.x - m.x, p.z - m.z);
       const headYaw = near || dist < 8 ? Math.max(-1, Math.min(1, angDiff(m.heading, toP))) : 0;
-      animateCharacter(m.rig, time + m.heading * 3, { speed: Math.min(1, hv / Math.max(0.1, def.speed)), attack: m.attackAnim > 0 ? 1 - m.attackAnim : 0, headYaw, headPitch: 0 });
-      if (this.soundT <= 0 && dist < 14 && Math.random() < 0.05) { this.soundT = 6 + Math.random() * 8; sfx.play(m.kind === 'pig' ? 'pig' : 'zombie', 0.9 + Math.random() * 0.3); }
+      animateCharacter(m.rig, time + m.heading * 3, { speed: Math.min(1, hv / Math.max(0.1, def.speed)), attack: m.attackAnim > 0 ? 1 - m.attackAnim : 0, headYaw, headPitch: 0, inAir: m.kind === 'chicken' && !m.onGround });
+      if (this.soundT <= 0 && dist < 14 && Math.random() < 0.05) { this.soundT = 6 + Math.random() * 8; const v = VOICE[m.kind] || ['zombie', 1]; sfx.play(v[0], v[1] * (0.9 + Math.random() * 0.3)); }
     }
     // fireballs
     for (const f of [...this.fireballs]) {

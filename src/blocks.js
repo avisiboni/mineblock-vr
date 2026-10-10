@@ -78,6 +78,15 @@ export const BLOCKS = {
   torch:          def({ name: 'Torch', faces: 'torch', solid: false, transparent: true, light: 14, hardness: 0, model: 'cross' }),
   tnt:            def({ name: 'TNT', faces: 'tnt', hardness: 0 }),
   bookshelf:      def({ name: 'Bookshelf', faces: { top: 'oak_planks', bottom: 'oak_planks', side: 'bookshelf' }, hardness: 1.5, tool: 'axe' }),
+  // ---- the End, wool, beds (appended: saves store numeric ids, so new blocks always go last) ----
+  end_stone:        def({ name: 'End Stone', faces: 'end_stone', hardness: 3, tool: 'pickaxe', tier: 1 }),
+  end_portal_frame: def({ name: 'End Portal Frame', faces: { top: 'end_portal_frame_top', bottom: 'end_stone', side: 'end_portal_frame_side' }, hardness: -1 }),
+  end_portal_frame_filled: def({ name: 'End Portal Frame (with Eye)', faces: { top: 'end_portal_frame_top_eye', bottom: 'end_stone', side: 'end_portal_frame_side' }, hardness: -1, drops: 'end_portal_frame' }),
+  end_portal:       def({ name: 'End Portal', faces: 'end_portal', solid: false, transparent: true, light: 15, hardness: -1, drops: null, animated: true }),
+  white_wool:       def({ name: 'White Wool', faces: 'white_wool', hardness: 0.8 }),
+  // beds are two blocks (foot + head), 9/16 tall; `height` lowers the top face and the collision box
+  bed_foot:         def({ name: 'Bed', faces: { top: 'bed_foot_top', bottom: 'oak_planks', side: 'bed_foot_side' }, hardness: 0.2, transparent: true, height: 0.5625, drops: null, interact: 'bed' }),
+  bed_head:         def({ name: 'Bed', faces: { top: 'bed_head_top', bottom: 'oak_planks', side: 'bed_head_side' }, hardness: 0.2, transparent: true, height: 0.5625, drops: null, interact: 'bed' }),
 };
 
 export const BLOCK_LIST = Object.keys(BLOCKS);
@@ -121,6 +130,17 @@ export const ITEMS = {
   porkchop: item({ name: 'Raw Porkchop', tile: 'porkchop', food: 3 }),
   cooked_porkchop: item({ name: 'Cooked Porkchop', tile: 'cooked_porkchop', food: 8 }),
   snowball: item({ name: 'Snowball', tile: 'snowball', stack: 16, throwable: true }),
+  ender_pearl: item({ name: 'Ender Pearl', tile: 'ender_pearl', stack: 16 }),
+  eye_of_ender: item({ name: 'Eye of Ender', tile: 'eye_of_ender', use: 'eye' }),
+  bed: item({ name: 'Bed', tile: 'bed_item', stack: 1, use: 'bed' }),
+  raw_beef: item({ name: 'Raw Beef', tile: 'raw_beef', food: 3 }),
+  steak: item({ name: 'Steak', tile: 'steak', food: 8 }),
+  raw_chicken: item({ name: 'Raw Chicken', tile: 'raw_chicken', food: 2 }),
+  cooked_chicken: item({ name: 'Cooked Chicken', tile: 'cooked_chicken', food: 6 }),
+  raw_mutton: item({ name: 'Raw Mutton', tile: 'raw_mutton', food: 2 }),
+  cooked_mutton: item({ name: 'Cooked Mutton', tile: 'cooked_mutton', food: 6 }),
+  feather: item({ name: 'Feather', tile: 'feather' }),
+  leather: item({ name: 'Leather', tile: 'leather' }),
   ...toolset('wood', 1, 59, 2),
   ...toolset('stone', 2, 131, 3),
   ...toolset('iron', 3, 250, 4),
@@ -150,6 +170,7 @@ export const RECIPES = [
   { pattern: ['I', 'F'], key: { I: 'iron_ingot', F: 'gravel' }, result: { item: 'flint_and_steel', count: 1 } },
   { pattern: ['NNN', 'NNN', 'NNN'], key: { N: 'netherite_ingot' }, result: { item: 'netherite_block', count: 1 } },
   { pattern: ['PPP', 'BBB', 'PPP'], key: { P: 'oak_planks', B: 'oak_planks' }, result: { item: 'bookshelf', count: 1 } },
+  { pattern: ['WWW', 'PPP'], key: { W: 'white_wool', P: 'oak_planks' }, result: { item: 'bed', count: 1 } },
   ...['iron_ingot', 'gold_ingot', 'diamond', 'lapis_lazuli', 'emerald', 'coal'].map((m) => ({
     pattern: ['MMM', 'MMM', 'MMM'], key: { M: m },
     result: { item: m.replace('_ingot', '').replace('lapis_lazuli', 'lapis') + '_block', count: 1 },
@@ -166,10 +187,12 @@ export const RECIPES = [
 export const SMELTING = {
   iron_ore: 'iron_ingot', gold_ore: 'gold_ingot', nether_gold_ore: 'gold_ingot',
   ancient_debris: 'netherite_scrap', cobblestone: 'stone', sand: 'glass',
+  raw_beef: 'steak', raw_chicken: 'cooked_chicken', raw_mutton: 'cooked_mutton',
 };
 // Netherite upgrade: 4 scrap + 4 gold ingots (shapeless) -> netherite ingot
 export const SHAPELESS = [
   { inputs: { netherite_scrap: 4, gold_ingot: 4 }, result: { item: 'netherite_ingot', count: 1 } },
+  { inputs: { ender_pearl: 1, blaze_rod: 1 }, result: { item: 'eye_of_ender', count: 1 } },
   { inputs: { diamond_pickaxe: 1, netherite_ingot: 1 }, result: { item: 'netherite_pickaxe', count: 1 } },
   { inputs: { diamond_axe: 1, netherite_ingot: 1 }, result: { item: 'netherite_axe', count: 1 } },
   { inputs: { diamond_shovel: 1, netherite_ingot: 1 }, result: { item: 'netherite_shovel', count: 1 } },
@@ -179,8 +202,9 @@ export const SHAPELESS = [
 // Creative / showcase palette order (also the default creative inventory order).
 export const CREATIVE_ORDER = [
   'grass', 'dirt', 'stone', 'cobblestone', 'sand', 'gravel', 'snow', 'snow_grass', 'ice', 'water', 'glass',
-  'oak_log', 'oak_planks', 'oak_leaves', 'crafting_table', 'furnace', 'torch', 'bookshelf', 'tnt',
+  'oak_log', 'oak_planks', 'oak_leaves', 'white_wool', 'crafting_table', 'furnace', 'torch', 'bookshelf', 'tnt',
   'coal_ore', 'iron_ore', 'gold_ore', 'lapis_ore', 'redstone_ore', 'diamond_ore', 'emerald_ore',
   'coal_block', 'iron_block', 'gold_block', 'lapis_block', 'diamond_block', 'emerald_block', 'netherite_block',
   'netherrack', 'soul_sand', 'glowstone', 'nether_bricks', 'magma', 'nether_quartz_ore', 'nether_gold_ore', 'ancient_debris', 'lava', 'obsidian', 'nether_portal', 'bedrock',
+  'end_stone', 'end_portal_frame', 'end_portal_frame_filled',
 ];

@@ -44,6 +44,7 @@ export class Portals {
 
   tryIgnite(t) {
     const g = this.g, dim = g.dim;
+    if (dim.name === 'end') return false;
     // interior candidates: the air cell in front of the clicked face, plus the air cells around the clicked block
     // (so clicking any part of the obsidian frame works, not just its inner face)
     const cand = [[t.px, t.py, t.pz]];

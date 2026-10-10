@@ -603,6 +603,140 @@ function ingot(px, matName) { const m = MATERIALS[matName]; px.fill(C.black, 0);
 function gem(px, matName) { const m = MATERIALS[matName]; px.fill(C.black, 0); px.map(GEM, { L: [m[2]], M: [m[1]], d: [m[0]] }); }
 function lump(px, matName) { const m = MATERIALS[matName]; px.fill(C.black, 0); px.map(LUMP, { L: [m[2]], M: [m[1]], d: [m[0]] }); }
 
+
+// ------------------------------------------------- the End, wool and beds
+const END = {
+  stone: hex('#dbde9e'), stoneDark: hex('#c2c585'), stoneLight: hex('#ecefbc'),
+  frame: hex('#3c7563'), frameDark: hex('#244a3f'), frameLight: hex('#5f9c84'), hole: hex('#13261f'),
+  eye: hex('#2f9a52'), eyeLight: hex('#7fe39a'), pupil: hex('#0a2416'),
+  void: hex('#04050b'), star: [hex('#bafcff'), hex('#5fd6c4'), hex('#2c8f86'), hex('#ffffff')],
+};
+const WOOL = hex('#e9ecec'), WOOL_DARK = hex('#cfd4d4');
+const BED_RED = hex('#b02e26'), BED_RED_DARK = hex('#7e1f1a'), BED_RED_LIGHT = hex('#cf453c');
+function endStone(px, rand) {
+  px.noise(rand, END.stone, 0.05);
+  px.speckle(rand, END.stoneDark, 22); px.speckle(rand, END.stoneLight, 10);
+  [[3, 4], [11, 2], [7, 10], [13, 12], [2, 13]].forEach(([x, y]) => { px.set(x, y, END.stoneDark); px.set(x + 1, y, END.stoneDark); px.set(x, y + 1, END.stoneDark); });
+}
+function endFrameSide(px, rand) {
+  endStone(px, rand);
+  px.rect(0, 0, 16, 4, END.frame); px.hline(0, 15, 0, END.frameLight); px.hline(0, 15, 4, END.frameDark);
+  for (let x = 1; x < 16; x += 4) px.set(x, 2, END.frameLight);
+}
+function endFrameTop(px, rand, eye = false) {
+  px.noise(rand, END.frame, 0.08);
+  px.bevel(END.frameLight, END.frameDark);
+  px.rect(4, 4, 8, 8, END.frameDark); px.rect(5, 5, 6, 6, END.hole);
+  if (!eye) return;
+  px.rect(5, 5, 6, 6, END.eye); px.rect(4, 6, 8, 4, END.eye); px.rect(6, 4, 4, 8, END.eye);
+  px.rect(6, 6, 4, 4, END.pupil); px.set(6, 6, END.eyeLight); px.set(7, 5, END.eyeLight);
+}
+function endPortal(px, rand, frame = 0) {
+  px.fill(END.void);
+  // three star layers drifting at different speeds give a deep, moving starfield
+  for (let layer = 0; layer < 3; layer++) {
+    const r = rng(1234 + layer * 77);
+    for (let i = 0; i < 9 - layer * 2; i++) {
+      const x = ((r() * 16) | 0) + Math.floor(frame * (layer + 1) * 0.5), y = ((r() * 16) | 0) + Math.floor(frame * (layer + 1) * 0.25);
+      px.set(x & 15, y & 15, END.star[(layer + i) % 4]);
+    }
+  }
+}
+function wool(px, rand) {
+  px.noise(rand, WOOL, 0.04);
+  for (let y = 1; y < 16; y += 4) for (let x = (y % 8 === 1 ? 0 : 2); x < 16; x += 4) { px.set(x, y, WOOL_DARK); px.set(x + 1, y + 1, WOOL_DARK); }
+}
+function bedHeadTop(px, rand) {
+  px.noise(rand, WOOL, 0.03);
+  px.rect(2, 2, 12, 12, hex('#f6f8f8')); px.border(WOOL_DARK);
+  px.hline(2, 13, 13, WOOL_DARK); px.vline(13, 2, 13, WOOL_DARK);
+  px.rect(0, 0, 16, 1, BED_RED); px.rect(0, 15, 16, 1, BED_RED);
+}
+function bedFootTop(px, rand) {
+  px.noise(rand, BED_RED, 0.05);
+  px.border(BED_RED_DARK);
+  for (let x = 2; x < 14; x += 3) px.vline(x, 2, 13, BED_RED_LIGHT);
+}
+// side tiles: only the bottom 9 rows are shown (beds are 9/16 tall)
+function bedSide(px, rand, head) {
+  px.fill(C.black, 0);
+  px.rect(0, 7, 16, 4, head ? WOOL : BED_RED); px.hline(0, 15, 7, head ? hex('#f6f8f8') : BED_RED_LIGHT);
+  px.rect(0, 11, 16, 2, C.planksDark);
+  px.rect(0, 13, 3, 3, C.planksDark); px.rect(13, 13, 3, 3, C.planksDark);
+}
+const BED_ICON = [
+  '................',
+  '................',
+  '................',
+  '................',
+  '..WW............',
+  '.WWWRRRRRRRRRRR.',
+  '.wWWRRRRRRRRRRR.',
+  '.wwwrrrrrrrrrrr.',
+  '.PPPPPPPPPPPPPP.',
+  '.pp..........pp.',
+  '.pp..........pp.',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+const ORB = [
+  '................',
+  '................',
+  '................',
+  '......dddd......',
+  '.....dMMMMd.....',
+  '....dMLLMMMd....',
+  '...dMLLMMMMMd...',
+  '...dMLMMMMMMd...',
+  '...dMMMMMMMMd...',
+  '...dMMMMMMMMd...',
+  '....dMMMMMMd....',
+  '.....dMMMMd.....',
+  '......dddd......',
+  '................',
+  '................',
+  '................',
+];
+const FEATHER = [
+  '................',
+  '............ww..',
+  '..........wwWw..',
+  '.........wWWw...',
+  '........wWWWw...',
+  '.......wWWWw....',
+  '......wWWWw.....',
+  '.....wWWWw......',
+  '....wWWWw.......',
+  '....wWWw........',
+  '...wWw..........',
+  '..qww...........',
+  '.q..............',
+  'q...............',
+  '................',
+  '................',
+];
+const HIDE = [
+  '................',
+  '................',
+  '...LL......LL...',
+  '..LMMMMMMMMMML..',
+  '...MMMMMMMMMM...',
+  '...MMdMMMMMMM...',
+  '...MMMMMMMdMM...',
+  '...MMMMMMMMMM...',
+  '...MMMMdMMMMM...',
+  '...MMMMMMMMMM...',
+  '..LMMMMMMMMMML..',
+  '...LL......LL...',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+
 // ------------------------------------------------------------ tile registry
 // name -> painter(px, rand, frame). Order here = index order in the atlas.
 export const PAINTERS = {
@@ -654,6 +788,24 @@ export const PAINTERS = {
   blaze_rod: (px) => { px.fill(C.black, 0); px.map(ROD, { s: [C.torchFlame] }); },
   porkchop: (px) => food(px, hex('#ef9a9a'), hex('#d97a7a'), hex('#b85555')),
   cooked_porkchop: (px) => food(px, hex('#b9743a'), hex('#9a5a28'), hex('#6b3c1a')),
+  // the End, wool, beds
+  end_stone: endStone, end_portal_frame_side: endFrameSide,
+  end_portal_frame_top: (px, r) => endFrameTop(px, r, false), end_portal_frame_top_eye: (px, r) => endFrameTop(px, r, true),
+  end_portal: (px, r, f) => endPortal(px, r, f),
+  white_wool: wool,
+  bed_head_top: bedHeadTop, bed_foot_top: bedFootTop,
+  bed_head_side: (px, r) => bedSide(px, r, true), bed_foot_side: (px, r) => bedSide(px, r, false),
+  bed_item: (px) => { px.fill(C.black, 0); px.map(BED_ICON, { W: [WOOL], w: [WOOL_DARK], R: [BED_RED], r: [BED_RED_DARK], P: [C.planks], p: [C.planksDark] }); },
+  ender_pearl: (px) => { px.fill(C.black, 0); px.map(ORB, { d: [hex('#0b3b36')], M: [hex('#1d7a6c')], L: [hex('#7fe0cf')] }); },
+  eye_of_ender: (px) => { px.fill(C.black, 0); px.map(ORB, { d: [hex('#16502a')], M: [END.eye], L: [END.eyeLight] }); px.rect(7, 6, 2, 4, END.pupil); },
+  feather: (px) => { px.fill(C.black, 0); px.map(FEATHER, { w: [WOOL_DARK], W: [C.white], q: [hex('#a0a0a0')] }); },
+  leather: (px) => { px.fill(C.black, 0); px.map(HIDE, { L: [hex('#7a4424')], M: [hex('#a0602f')], d: [hex('#86502a')] }); },
+  raw_beef: (px) => food(px, hex('#d8423a'), hex('#b02e28'), hex('#f0c8c0')),
+  steak: (px) => food(px, hex('#8a4a26'), hex('#6b3418'), hex('#4a2410')),
+  raw_chicken: (px) => food(px, hex('#f2c8b8'), hex('#e0a898'), hex('#c88878')),
+  cooked_chicken: (px) => food(px, hex('#d89848'), hex('#b8742c'), hex('#8a5018')),
+  raw_mutton: (px) => food(px, hex('#e05a50'), hex('#c04038'), hex('#f4f0e8')),
+  cooked_mutton: (px) => food(px, hex('#9c5a34'), hex('#7a4020'), hex('#e8d8c0')),
   snowball: (px) => { px.fill(C.black, 0); px.rect(5, 5, 6, 6, C.snow); px.rect(4, 6, 8, 4, C.snow); px.rect(6, 4, 4, 8, C.snow); px.set(6, 6, C.white); px.set(9, 9, C.snowShade); },
   ...Object.fromEntries(['wood', 'stone', 'iron', 'gold', 'diamond', 'netherite'].flatMap((m) => [
     [`${m}_pickaxe`, (px) => tool(px, PICKAXE, m)],
@@ -664,7 +816,7 @@ export const PAINTERS = {
 };
 
 export const TILE_NAMES = Object.keys(PAINTERS);
-export const ANIMATED_TILES = { water: 8, lava: 6, nether_portal: 12, magma: 6, furnace_front_lit: 8 }; // name -> fps
+export const ANIMATED_TILES = { water: 8, lava: 6, nether_portal: 12, magma: 6, furnace_front_lit: 8, end_portal: 6 }; // name -> fps
 
 // Deterministic seed per tile so each texture is stable.
 function seedFor(name) { let h = 2166136261; for (let i = 0; i < name.length; i++) { h ^= name.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }

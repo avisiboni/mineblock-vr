@@ -7,10 +7,11 @@
 // (forward = (-sin yaw, -cos yaw)); a character rig faces yaw + PI.
 // Units: metres, seconds. 60 Hz fixed steps.
 // ============================================================================
-import { BLOCKS, BLOCK_LIST } from './blocks.js';
+import { BLOCKS, BLOCK_LIST, BLOCK_ID } from './blocks.js';
 import { moveBox, collides, touches, PORTAL } from './physics.js';
 import { LIQUID } from './tables.js';
 
+const END_PORTAL = BLOCK_ID.end_portal;
 const moveToward = (v, t, d) => (v < t ? Math.min(t, v + d) : Math.max(t, v - d));
 
 export class Player {
@@ -25,8 +26,8 @@ export class Player {
     this.hp = 20; this.hunger = 20; this.air = 10; this.xp = 0;
     this.fall = 0; this.invuln = 0; this.dead = false;
     this.envTimer = 0; this.regenTimer = 0; this.hungerTimer = 0; this.drownTimer = 0;
-    this.walkDist = 0; this.speedFrac = 0; this.inPortal = false;
-    this.ground = 'air'; this.spawn = { x: 0, y: 80, z: 0 };
+    this.walkDist = 0; this.speedFrac = 0; this.inPortal = false; this.inEndPortal = false;
+    this.ground = 'air'; this.spawn = { x: 0, y: 80, z: 0 }; this.worldSpawn = { x: 0, y: 80, z: 0 };
     this.onHurt = null; this.onLand = null; this.onSplash = null; this.onJump = null;
     this.sneakEye = 1.62;
     // double-tap helpers (updated per frame by handleKeys)
@@ -167,6 +168,7 @@ export class Player {
     } else { this.air = 10; this.hp = 20; }
 
     this.inPortal = touches(dim, this, PORTAL, 0.1);
+    this.inEndPortal = touches(dim, this, END_PORTAL, 0.1);
     if (this.y < -30) { this.damage(99, 'void'); }
   }
 

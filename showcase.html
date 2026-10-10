@@ -198,7 +198,7 @@ function rebuildWorld() {
 const rigs = {};
 const charGroup = new THREE.Group(); scene.add(charGroup);
 // ground top is y=4 in both dioramas (blocks at y=3 fill 3..4)
-const SPOTS = { player: [13, 4, 12], zombie: [16, 4, 9], pig: [9, 4, 8], piglin: [10, 4, 10], wisp: [6, 7, 12] };
+const SPOTS = { player: [13, 4, 12], zombie: [16, 4, 9], pig: [9, 4, 8], piglin: [10, 4, 10], wisp: [6, 7, 12], cow: [7, 4, 10], sheep: [11, 4, 6], chicken: [12, 4, 9], enderman: [15, 4, 13] };
 for (const kind in CHARACTERS) {
   const rig = buildCharacter(THREE, kind);
   rig.group.position.set(...SPOTS[kind]);

@@ -12,6 +12,7 @@ import { raycast, collides } from './physics.js';
 import { SOLID, LIQUID, OPAQUE } from './tables.js';
 import { sfx } from './sfx.js';
 
+const NETHER_PORTAL = BLOCK_ID.nether_portal, END_PORTAL = BLOCK_ID.end_portal;
 const FACE_DIRS = { top: [0, 1, 0], bottom: [0, -1, 0], north: [0, 0, -1], south: [0, 0, 1], east: [1, 0, 0], west: [-1, 0, 0] };
 
 export class Interaction {
@@ -55,7 +56,7 @@ export class Interaction {
   pick() {
     const g = this.g, p = g.player, dim = g.dim;
     const { o, d, max } = this._ray();
-    const hit = raycast(dim, o.x, o.y, o.z, d.x, d.y, d.z, max, (id) => !LIQUID[id] && BLOCK_LIST[id] !== 'nether_portal');
+    const hit = raycast(dim, o.x, o.y, o.z, d.x, d.y, d.z, max, (id) => !LIQUID[id] && id !== NETHER_PORTAL && id !== END_PORTAL);
     let mob = g.mobs?.raycast(o, d, g.camMode === 'top' ? 60 : (g.creative ? 6 : 4.2));
     // reach limit from the player's body (matters in top-down where the ray is long)
     let block = hit;
@@ -104,7 +105,10 @@ export class Interaction {
     if (dim.tiles.has(tk)) { const te = dim.tiles.get(tk); for (const s of [te.input, te.fuel, te.output]) if (s) g.drops.spawn(s.item, s.count, t.x + 0.5, t.y + 0.5, t.z + 0.5); dim.tiles.delete(tk); }
     if (!g.creative && key.endsWith('_ore')) g.addXP(0.12);
     g.particles.breakBurst(t.x, t.y, t.z, key);
+    const meta = dim.getMeta(t.x, t.y, t.z);
     dim.setBlock(t.x, t.y, t.z, 'air');
+    if (key === 'end_portal_frame' || key === 'end_portal_frame_filled') g.end.onFrameBroken(dim, t.x, t.y, t.z);
+    else if (key === 'bed_foot' || key === 'bed_head') g.beds.onBroken(t.x, t.y, t.z, t.id, meta);
     sfx.play('dig', 0.8 + Math.random() * 0.3);
     this.swing = 1;
   }
@@ -140,6 +144,8 @@ export class Interaction {
   use(t, stack) {
     const g = this.g, def = ITEMS[stack.item];
     if (!def) return false;
+    if (def.use === 'eye') return g.end.useEye(t, stack);
+    if (def.use === 'bed') return g.beds.place(t);
     if (def.use === 'ignite') {
       if (!t) return false;
       const ok = g.portals.tryIgnite(t);

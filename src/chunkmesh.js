@@ -15,11 +15,11 @@ import * as THREE from 'three';
 import { BLOCKS, BLOCK_LIST, BLOCK_ID, faceTile } from './blocks.js';
 import { FACE_VERTS, FACE_DIR, FACE_SHADE, FACE_NAMES, passFor } from './blockmesh.js';
 import { animatedTexture } from './textures.js';
-import { OPAQUE, LIQUID, EMIT } from './tables.js';
+import { OPAQUE, LIQUID, EMIT, HEIGHT } from './tables.js';
 import { CH, HT } from './worldgen.js';
 
 export const LIGHT = { uDay: { value: 1 }, uMin: { value: 0.04 } };
-export const ANIMATED_KEYS = ['water', 'lava', 'nether_portal', 'magma'];
+export const ANIMATED_KEYS = ['water', 'lava', 'nether_portal', 'magma', 'end_portal'];
 
 function patch(mat) {
   mat.onBeforeCompile = (shader) => {
@@ -50,7 +50,7 @@ export function makeMaterials(atlas) {
   for (const key of ANIMATED_KEYS) {
     const anim = animatedTexture(key); const t = tex(anim.canvas);
     const transparent = key === 'water' || key === 'nether_portal';
-    const m = patch(new THREE.MeshBasicMaterial({ map: t, vertexColors: true, transparent, depthWrite: !transparent, side: key === 'nether_portal' ? THREE.DoubleSide : THREE.FrontSide }));
+    const m = patch(new THREE.MeshBasicMaterial({ map: t, vertexColors: true, transparent, depthWrite: !transparent, side: key === 'nether_portal' || key === 'end_portal' ? THREE.DoubleSide : THREE.FrontSide }));
     mats.animated[key] = m; mats.anims.push({ anim, tex: t });
   }
   return mats;
@@ -111,7 +111,7 @@ const FACE_AXIS = [1, 1, 2, 2, 0, 0];
 const OFF = [PA, -PA, -PW, PW, 1, -1]; // top,bottom,north(-z),south(+z),east,west
 const TANG = [[0, 2], [0, 2], [0, 1], [0, 1], [1, 2], [1, 2]]; // tangent axes per face
 
-function quad(buf, x, y, z, f, uv, ci, lowerTop, emit) {
+function quad(buf, x, y, z, f, uv, ci, topH, emit) {
   const verts = FACE_VERTS[f];
   const front = ci + OFF[f];
   const [a1, a2] = TANG[f];
@@ -132,9 +132,10 @@ function quad(buf, x, y, z, f, uv, ci, lowerTop, emit) {
     if (!o2) { sk += cSky[s2]; bl += cBlk[s2]; cnt++; }
     if (!oc && !(o1 && o2)) { sk += cSky[cc]; bl += cBlk[cc]; cnt++; }
     const r = curve(sk / cnt), g = Math.max(curve(bl / cnt), emit ? CURVE[emit] : 0);
-    const vy = vt[1] && lowerTop ? 0.875 : vt[1];
+    const vy = vt[1] ? topH : 0;
     buf.pos.push(x + vt[0], y + vy, z + vt[2]);
-    buf.uv.push(us[v][0], us[v][1]);
+    // lowered side faces show the bottom part of their tile instead of squashing it
+    buf.uv.push(us[v][0], f >= 2 && vt[1] && topH < 1 ? uv.v0 + (uv.v1 - uv.v0) * topH : us[v][1]);
     buf.col.push(r, g, shade * AO[a]);
   }
   const n = base;
@@ -152,6 +153,14 @@ function cross(buf, x, y, z, uv, ci, emit) {
   const us = [[uv.u0, uv.v0], [uv.u1, uv.v0], [uv.u1, uv.v1], [uv.u0, uv.v1]];
   for (const q of Q) for (let i = 0; i < 4; i++) { buf.pos.push(x + q[i][0], y + q[i][1], z + q[i][2]); buf.uv.push(us[i][0], us[i][1]); buf.col.push(r, g, b); }
   const n = buf.n; buf.idx.push(n, n + 1, n + 2, n, n + 2, n + 3, n + 4, n + 5, n + 6, n + 4, n + 6, n + 7); buf.n += 8;
+}
+
+// End portal: a flat, always-bright surface 3/4 of the way up the block
+function endPortalQuad(buf, x, y, z) {
+  const v = [[0, 0.75, 1], [1, 0.75, 1], [1, 0.75, 0], [0, 0.75, 0]];
+  const us = [[0, 0], [1, 0], [1, 1], [0, 1]];
+  for (let i = 0; i < 4; i++) { buf.pos.push(x + v[i][0], y + v[i][1], z + v[i][2]); buf.uv.push(us[i][0], us[i][1]); buf.col.push(0, 1, 1); }
+  const n = buf.n; buf.idx.push(n, n + 1, n + 2, n, n + 2, n + 3); buf.n += 4;
 }
 
 function portalQuad(buf, x, y, z, axis, ci) {
@@ -180,22 +189,24 @@ export function meshChunk(dim, c, atlas, mats) {
     const emit = EMIT[id];
     if (T.cross[id]) { cross(buf, x, y, z, T.uv[id][0], ci, emit); continue; }
     if (T.anim[id] === 'nether_portal') { portalQuad(buf, x, y, z, c.meta.get(x + 16 * z + 256 * y) ?? 0, ci); continue; }
+    if (T.anim[id] === 'end_portal') { endPortalQuad(buf, x, y, z); continue; }
     const uvs = T.uv[id]; if (!uvs) continue;
     const liquid = LIQUID[id];
     const lowerTop = liquid && cId[ci + PA] !== id;
+    const topH = lowerTop ? 0.875 : HEIGHT[id];
     let rot = 0;
     if (T.front[id]) rot = c.meta.get(x + 16 * z + 256 * y) ?? 0;
     for (let f = 0; f < 6; f++) {
       const nid = cId[ci + OFF[f]];
       if (nid === id) { if (!(f === 0 && lowerTop)) continue; }
-      else if (OPAQUE[nid]) continue;
+      else if (OPAQUE[nid] && !(f === 0 && topH < 1)) continue;
       let uf = uvs[f];
       if (rot && f >= 2) { const hi = HORIZ.indexOf(f); uf = uvs[HORIZ[(hi - rot + 4) % 4]]; }
-      quad(buf, x, y, z, f, uf, ci, lowerTop, emit);
+      quad(buf, x, y, z, f, uf, ci, topH, emit);
     }
   }
   const out = [];
-  const order = { opaque: 0, cutout: 1, blend: 3, water: 3, nether_portal: 3, lava: 0, magma: 0 };
+  const order = { opaque: 0, cutout: 1, blend: 3, water: 3, nether_portal: 3, lava: 0, magma: 0, end_portal: 0 };
   for (const k in bufs) {
     const b = bufs[k]; if (!b.n) continue;
     const g = new THREE.BufferGeometry();

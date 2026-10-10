@@ -13,10 +13,13 @@
 //   right stick left/right  snap turn     right stick up/down  hotbar slot
 //   right trigger  break / attack         right grip  place / use
 //   A  jump / swim                        B  sneak
+//   X  open / close the inventory panel (point with the right ray: trigger = pick up / put down,
+//      grip = half / one). Creative shows every item. A hotbar + health strip sits on the left wrist.
 // ============================================================================
 import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+import { VRInventory } from './xrinv.js';
 
 const DEAD = 0.4, SNAP = Math.PI / 6;
 const MOVE_KEYS = ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space', 'ShiftLeft'];
@@ -41,6 +44,7 @@ export class XRSupport {
       ray.addEventListener('disconnected', () => { for (const k in this.hands) if (this.hands[k].ray === ray) { ray.children[0].visible = false; delete this.hands[k]; } });
       this.dolly.add(ray, grip);
     }
+    this.inv = new VRInventory(game, this);
     r.xr.addEventListener('sessionstart', () => this._start());
     r.xr.addEventListener('sessionend', () => this._end());
     const btn = VRButton.createButton(r);
@@ -66,6 +70,7 @@ export class XRSupport {
 
   _end() {
     const g = this.g, vm = g.viewmodel;
+    this.inv.close(); this.inv.wrist.visible = false;
     g.scene.add(g.camera);
     g.input.xr = false;
     for (const k of MOVE_KEYS) g.input.keys.delete(k);
@@ -101,6 +106,7 @@ export class XRSupport {
     p.yaw = Math.atan2(-d.x, -d.z); p.pitch = Math.asin(Math.max(-1, Math.min(1, d.y)));
 
     // no menus in the headset: respawn automatically after a short pause
+    if (p.dead && this.inv.isOpen) this.inv.close();
     if (p.dead) { this.deadT += dt; if (this.deadT > 2.5) { this.deadT = 0; g.respawn(); } } else this.deadT = 0;
 
     const L = this.hands.left?.src.gamepad, R = this.hands.right?.src.gamepad;
@@ -122,7 +128,12 @@ export class XRSupport {
       if (!on && inp.buttons[i]) inp.released[i] = true;
       inp.buttons[i] = on;
     };
-    edge(0, btn(R, 0)); edge(2, btn(R, 1));
+    const trig = btn(R, 0), grip = btn(R, 1), xBtn = btn(L, 4);
+    if (xBtn && !this.prev.x && !p.dead) { if (this.inv.isOpen) this.inv.close(); else if (!g.panelOpen) this.inv.open(g.creative ? 'creative' : 'inv'); }
+    if (this.inv.isOpen) { edge(0, false); edge(2, false); }   // the panel eats the buttons
+    else { edge(0, trig); edge(2, grip); }
+    this.inv.update(dt, this.inv.isOpen && trig && !this.prev.trig, this.inv.isOpen && grip && !this.prev.grip);
+    this.prev.trig = trig; this.prev.grip = grip; this.prev.x = xBtn;
 
     // right stick: snap turn and hotbar
     const [rx, ry] = stick(R);
@@ -130,5 +141,6 @@ export class XRSupport {
     else if (Math.abs(rx) < 0.3) this.snapArmed = true;
     if (Math.abs(ry) > 0.7 && this.slotArmed) { inp.wheel += ry > 0 ? 1 : -1; this.slotArmed = false; }
     else if (Math.abs(ry) < 0.3) this.slotArmed = true;
+
   }
 }

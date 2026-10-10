@@ -21,6 +21,8 @@ import { Particles, DroppedItems, FallingBlocks } from './entities.js';
 import { Interaction } from './interact.js';
 import { Mobs } from './mobs.js';
 import { Portals } from './portal.js';
+import { EndPortals } from './end.js';
+import { Beds } from './beds.js';
 import { Simulation } from './sim.js';
 import { CameraRig, ViewModel } from './view.js';
 import { Inventory } from './inventory.js';
@@ -58,6 +60,8 @@ export class Game {
     this.interact = new Interaction(this);
     this.mobs = new Mobs(this);
     this.portals = new Portals(this);
+    this.end = new EndPortals(this);
+    this.beds = new Beds(this);
     this.sim = new Simulation(this);
     this.cams = new CameraRig(this);
     this.viewmodel = new ViewModel(this);
@@ -165,6 +169,7 @@ export class Game {
   }
   closePanel() {
     if (!this.panelOpen) return;
+    if (this.panelOpen === 'vr') { this.xr.inv.close(); return; }
     const p = this.activePanel, kind = this.panelOpen;
     p.close(); this.panelOpen = null;
     if (kind === 'inv' || kind === 'craft') this.inv.setCraftSize(4);
@@ -175,12 +180,14 @@ export class Game {
   }
   openInventory() { this.openPanel(this.creative ? 'creative' : 'inv'); }
   openStation(kind, t) {
-    if (kind === 'crafting') this.openPanel('craft');
+    const vr = this.xr.active;   // in the headset, stations open the floating VR panel instead of the page UI
+    if (kind === 'bed') this.beds.use(t);
+    else if (kind === 'crafting') { if (vr) this.xr.inv.open('craft'); else this.openPanel('craft'); }
     else if (kind === 'furnace') {
       const k = `${t.x},${t.y},${t.z}`;
       if (!this.dim.tiles.has(k)) this.dim.tiles.set(k, newFurnace());
       this.furnaceTE = this.dim.tiles.get(k); this.furnaceKey = k;
-      this.openPanel('furnace');
+      if (vr) this.xr.inv.open('furnace'); else this.openPanel('furnace');
     }
   }
   unlockForUI() { if (this.input.locked) { this.expectUnlock++; this.input.unlock(); } }
@@ -271,8 +278,8 @@ export class Game {
   respawn() {
     const p = this.player; p.dead = false; p.hp = 20; p.hunger = 20; p.air = 10; p.fall = 0; p.invuln = 2; p.vx = p.vy = p.vz = 0;
     this.menus.death?.close();
-    if (this.dimName !== 'overworld') this.switchDimension('overworld', p.spawn.x, 70, p.spawn.z, true);
-    else p.teleport(p.spawn.x, p.spawn.y, p.spawn.z);
+    if (this.dimName !== 'overworld') this.switchDimension('overworld', 0, 0, 0, true, 'spawn');
+    else { const s = this.spawnArrival(this.dim); p.teleport(s.x, s.y, s.z); }
     this.mobs.clear(); this.loading = true; this.menus.loading?.open('Respawning…');
     if (this.camMode === 'fp' && !this.isTouch) this.input.lock();
   }
@@ -293,9 +300,11 @@ export class Game {
     const p = this.player; p.dead = false; p.hp = data?.player?.hp ?? 20; p.hunger = data?.player?.hunger ?? 20; p.xp = data?.player?.xp ?? 0; p.air = 10; p.fall = 0; p.flying = false; p.invuln = 1;
     this.dimName = data?.dim || 'overworld'; this.dim = this.world.dims[this.dimName];
     this.chunks.setDimension(this.dim);
-    if (data) { p.teleport(data.player.x, data.player.y, data.player.z); p.yaw = data.player.yaw; p.pitch = data.player.pitch; p.spawn = data.player.spawn || p.spawn; }
-    else {
-      const s = this.findSpawn(); p.teleport(s.x, s.y, s.z); p.spawn = { ...s }; p.yaw = 0; p.pitch = 0;
+    if (data) {
+      p.teleport(data.player.x, data.player.y, data.player.z); p.yaw = data.player.yaw; p.pitch = data.player.pitch; p.spawn = data.player.spawn || p.spawn;
+      const ws = data.player.worldSpawn || p.spawn; p.worldSpawn = { x: ws.x, y: ws.y, z: ws.z };
+    } else {
+      const s = this.findSpawn(); p.teleport(s.x, s.y, s.z); p.spawn = { ...s }; p.worldSpawn = { ...s }; p.yaw = 0; p.pitch = 0;
     }
     this.cams.setMode(data?.camMode === 'top' ? 'top' : 'fp');
     this.playing = true; this.paused = false; this.panelOpen = null; this.loading = true; this.saveT = 0;
@@ -320,23 +329,35 @@ export class Game {
     return { x: 0.5, y: 90, z: 0.5 };
   }
 
-  switchDimension(name, x, y, z, silentLoad) {
+  // how: 'portal' (find/build a nether portal), 'end' (obsidian platform in the End), 'spawn' (bed or world spawn)
+  switchDimension(name, x, y, z, silentLoad, how = 'portal') {
     const p = this.player;
     this.dimName = name; this.dim = this.world.dims[name];
     this.chunks.setDimension(this.dim);
-    this.mobs.clear(); this.drops.clear(); this.particles.clear(); this.falling.clear(); this.sim.clear();
-    const pos = this.portals.arrive(this.dim, x, y, z);
+    this.mobs.clear(); this.drops.clear(); this.particles.clear(); this.falling.clear(); this.sim.clear(); this.end.clear();
+    const pos = how === 'spawn' ? this.spawnArrival(this.dim) : how === 'end' ? this.end.arrive(this.dim) : this.portals.arrive(this.dim, x, y, z);
     p.teleport(pos.x, pos.y, pos.z); if (pos.yaw !== undefined) p.yaw = pos.yaw;
-    this.loading = true; if (!silentLoad) this.menus.loading?.open(name === 'nether' ? 'Entering the Nether…' : 'Returning to the Overworld…');
+    p.vx = p.vy = p.vz = 0; p.fall = 0;
+    this.loading = true; if (!silentLoad) this.menus.loading?.open(name === 'nether' ? 'Entering the Nether…' : name === 'end' ? 'Entering the End…' : 'Returning to the Overworld…');
     this.save();
+  }
+  // Overworld respawn position: the bed if it still exists, otherwise the world spawn
+  spawnArrival(dim) {
+    const p = this.player, b = p.spawn.bed;
+    if (b) {
+      dim.ensureChunk(b.x >> 4, b.z >> 4);
+      const k = dim.getBlock(b.x, b.y, b.z);
+      if (k !== 'bed_foot' && k !== 'bed_head') { p.spawn = { ...p.worldSpawn }; this.hud.toast('Your bed was missing', 2000); }
+    }
+    return { x: p.spawn.x, y: p.spawn.y, z: p.spawn.z };
   }
 
   teardown() {
-    this.mobs.clear(); this.drops.clear(); this.particles.clear(); this.falling.clear(); this.sim.clear();
+    this.mobs.clear(); this.drops.clear(); this.particles.clear(); this.falling.clear(); this.sim.clear(); this.end?.clear();
     this.chunks.clear(); this.closePanelSilently(); sfx.portalHum(false);
     this.hud.setTint('none', false);
   }
-  closePanelSilently() { if (this.panelOpen) { this.activePanel?.close(); this.panelOpen = null; } }
+  closePanelSilently() { if (this.panelOpen === 'vr') this.xr.inv.close(); if (this.panelOpen) { this.activePanel?.close(); this.panelOpen = null; } }
 
   save() { if (this.playing && this.world && this.slot != null && !this.loading) saveGame(this); }
   quitToTitle() {
@@ -420,6 +441,8 @@ export class Game {
     this.interact.update(dt);
     this.sim.update(dt);
     this.portals.update(dt);
+    this.end.update(dt);
+    this.beds.update(dt);
     this.mobs.update(dt, t);
     this.drops.update(dt, dim, p, this.inv, (item, n) => { sfx.play('pop', 0.8 + Math.random() * 0.5); this.refreshHotbar(); this.hud.message(`+${n} ${itemDef(item).name}`); }, this.sky.dayFactor);
     this.falling.update(dt, dim, (key, x, y, z) => this.drops.spawn(key, 1, x + 0.5, y + 0.5, z + 0.5));
