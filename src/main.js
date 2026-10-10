@@ -18,7 +18,12 @@ const game = new Game(canvas, ui, atlas);
 window.__game = game;   // handy for debugging in the console
 
 // scale the pixel-UI unit with the window so the hotbar / inventory always fit
-const fitUI = () => document.documentElement.style.setProperty('--ui', `${Math.max(1.5, Math.min(3, Math.min(innerWidth / 210, innerHeight / 150)))}px`);
+// the full-screen menus get their own, larger unit so they don't look tiny on big monitors
+const fitUI = () => {
+  const root = document.documentElement.style, k = Math.min(innerWidth / 210, innerHeight / 150);
+  root.setProperty('--ui', `${Math.max(1.5, Math.min(3, k))}px`);
+  root.setProperty('--mui', `${Math.max(1.5, Math.min(8, Math.min(innerWidth / 130, innerHeight / 100)))}px`);
+};
 addEventListener('resize', fitUI); fitUI();
 
 const DISTANCES = [4, 6, 8, 12];
