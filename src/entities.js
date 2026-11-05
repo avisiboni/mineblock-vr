@@ -96,7 +96,7 @@ export class DroppedItems {
     let mesh;
     if (isBlockItem(item)) mesh = new THREE.Mesh(blockGeometry(THREE, this.atlas, item, 0.28), this.blockMat);
     else { mesh = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ map: itemTexture(item), transparent: true, alphaTest: 0.4, side: THREE.DoubleSide })); }
-    if (BLOCKS[item]?.model === 'cross') { mesh.geometry.dispose?.(); mesh = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ map: itemTexture2(this.atlas, item), transparent: true, alphaTest: 0.4, side: THREE.DoubleSide })); }
+    if (BLOCKS[item]?.model === 'cross' || BLOCKS[item]?.icon) { mesh.geometry.dispose?.(); mesh = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ map: itemTexture2(this.atlas, item), transparent: true, alphaTest: 0.4, side: THREE.DoubleSide })); }
     this.group.add(mesh);
     if (this.list.length > 250) this.remove(this.list[0]);
     this.list.push({ item, count, ...extra, x, y, z, vx, vy, vz, w: 0.25, h: 0.25, age: 0, mesh, phase: Math.random() * 6.28 });
@@ -128,7 +128,7 @@ export class DroppedItems {
 }
 function itemTexture2(atlas, blockKey) { // cross-model blocks (torch) drop as their tile
   const k = 'b:' + blockKey;
-  if (!iconTextures.has(k)) { const t = new THREE.CanvasTexture(paintTile(faceTile(BLOCKS[blockKey], 'top'))); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; iconTextures.set(k, t); }
+  if (!iconTextures.has(k)) { const t = new THREE.CanvasTexture(paintTile(BLOCKS[blockKey].icon || faceTile(BLOCKS[blockKey], 'top'))); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; iconTextures.set(k, t); }
   return iconTextures.get(k);
 }
 

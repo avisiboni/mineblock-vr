@@ -109,6 +109,7 @@ export class Dimension {
     const old = c.blocks[i];
     if (old === id) return false;
     c.blocks[i] = id;
+    const oldMeta = c.meta.get(i) ?? 0;
     if (opts.record !== false) {
       if (!c.store) c.store = this.storeFor(c.cx, c.cz);
       c.store.edits.set(i, id);
@@ -118,7 +119,7 @@ export class Dimension {
     if (y > c.maxY - 2) c.maxY = Math.min(HT - 1, y + 2);
     this.markDirtyAround(x, z);
     relightAfterChange(this, x, y, z, old, id);
-    if (opts.silent !== true) for (const f of this.listeners) f(x, y, z, BLOCK_LIST[old], BLOCK_LIST[id]);
+    if (opts.silent !== true) for (const f of this.listeners) f(x, y, z, BLOCK_LIST[old], BLOCK_LIST[id], oldMeta);
     return true;
   }
   setMeta(x, y, z, v) {

@@ -40,7 +40,7 @@ export class VRInventory {
     this.wtex = texFor(this.wc);
     this.wrist = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2 * this.wc.height / this.wc.width), new THREE.MeshBasicMaterial({ map: this.wtex, transparent: true, depthTest: false, fog: false }));
     this.wrist.renderOrder = 1999; this.wrist.visible = false;
-    this.wristT = 0; this.wristKey = '';
+    this.wristT = 0; this.wristKey = ''; this.msg = ''; this.msgT = 0;
     this.ray = new THREE.Raycaster(); this._o = new THREE.Vector3(); this._d = new THREE.Vector3();
   }
 
@@ -137,6 +137,10 @@ export class VRInventory {
         top += 2 * S + 70;
       } else {
         const n = this.mode === 'craft' ? 3 : 2, cx = W / 2 - (n * (S + G) + 140) / 2;
+        if (this.mode === 'inv') {   // armor: helmet, chestplate, leggings, boots (2 x 2 left of the crafting grid)
+          c.font = 'bold 20px monospace'; c.textAlign = 'left'; c.fillStyle = '#5a5a5a'; c.fillText(`Armor ${inv.armorPoints()}`, gx, top - 8);
+          for (let i = 0; i < 4; i++) this.slot(gx + (i % 2) * (S + G), top + Math.floor(i / 2) * (S + G), inv.armor[i], { section: 'armor', index: i });
+        }
         for (let i = 0; i < n * n; i++) this.slot(cx + (i % n) * (S + G), top + Math.floor(i / n) * (S + G), inv.craft[i], { section: 'craft', index: i });
         const ay = top + (n * (S + G) - G) / 2;
         c.fillStyle = '#8b8b8b'; c.beginPath(); c.moveTo(cx + n * (S + G) + 14, ay - 14); c.lineTo(cx + n * (S + G) + 54, ay - 14); c.lineTo(cx + n * (S + G) + 54, ay - 28); c.lineTo(cx + n * (S + G) + 84, ay); c.lineTo(cx + n * (S + G) + 54, ay + 28); c.lineTo(cx + n * (S + G) + 54, ay + 14); c.lineTo(cx + n * (S + G) + 14, ay + 14); c.fill();
@@ -194,20 +198,29 @@ export class VRInventory {
   }
 
   // ------------------------------------------------------------ wrist strip
+  // toasts (no page UI in the headset) show on the wrist for a few seconds
+  showMessage(msg, ms = 2000) { this.msg = String(msg); this.msgT = ms / 1000 + 0.5; this.wristT = 0; }
   updateWrist(dt) {
+    if (this.msgT > 0) { this.msgT -= dt; if (this.msgT <= 0) { this.msg = ''; this.wristT = 0; } }
     const g = this.g, left = this.xr.hands.left;
     if (!left) { this.wrist.visible = false; return; }
     if (this.wrist.parent !== left.grip) { left.grip.add(this.wrist); this.wrist.position.set(0, 0.03, 0.12); this.wrist.rotation.set(-Math.PI / 2.6, 0, 0); }
     this.wrist.visible = true;
     this.wristT -= dt; if (this.wristT > 0) return; this.wristT = 0.2;
     const inv = g.inv, p = g.player;
-    const key = JSON.stringify([inv.hotbar.map((s) => s && [s.item, s.count]), inv.selected, Math.ceil(p.hp), Math.ceil(p.hunger), g.creative]);
+    const key = JSON.stringify([inv.hotbar.map((s) => s && [s.item, s.count]), inv.selected, Math.ceil(p.hp), Math.ceil(p.hunger), g.creative, this.msg]);
     if (key === this.wristKey) return; this.wristKey = key;
     const c = this.wctx, cw = this.wc.width;
     c.clearRect(0, 0, cw, this.wc.height);
-    if (!g.creative) {
+    if (!g.creative && !this.msg) {
       for (let i = 0; i < 10; i++) { const v = Math.max(0, Math.min(2, p.hp - i * 2)); c.fillStyle = '#3a0d0d'; c.fillRect(8 + i * 28, 6, 24, 22); if (v) { c.fillStyle = '#e8262b'; c.fillRect(8 + i * 28, 6, 24 * v / 2, 22); } }
       for (let i = 0; i < 10; i++) { const v = Math.max(0, Math.min(2, p.hunger - i * 2)); c.fillStyle = '#3a2a10'; c.fillRect(cw - 32 - i * 28, 6, 24, 22); if (v) { c.fillStyle = '#c8822a'; c.fillRect(cw - 32 - i * 28 + 24 * (1 - v / 2), 6, 24 * v / 2, 22); } }
+    }
+    if (this.msg) {   // message banner in place of the hearts
+      c.fillStyle = 'rgba(0,0,0,0.75)'; c.fillRect(0, 0, cw, 36);
+      c.font = 'bold 20px monospace'; c.textAlign = 'center'; c.fillStyle = '#fff';
+      let m = this.msg; while (c.measureText(m).width > cw - 12 && m.length > 4) m = m.slice(0, -2);
+      c.fillText(m === this.msg ? m : m + '…', cw / 2, 26);
     }
     c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(0, 38, cw, 74);
     for (let i = 0; i < 9; i++) {

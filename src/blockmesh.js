@@ -104,7 +104,7 @@ export function makeAtlasMaterials(THREE, atlas) {
 }
 
 export function passFor(block) {
-  if (block.liquid || block.key === 'ice' || block.key === 'nether_portal') return 'blend';
+  if (block.liquid || block.blend || block.key === 'ice' || block.key === 'nether_portal') return 'blend';
   if (block.transparent) return 'cutout';
   return 'opaque';
 }

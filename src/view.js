@@ -95,11 +95,18 @@ export class ViewModel {
     if (!key) { this.fp.group.visible = true; return; }
     this.fp.group.visible = false;
     let mesh;
-    if (isBlockItem(key) && BLOCKS[key].model !== 'cross') {
+    if (key === 'phone') {
+      // a real little phone: dark body + a live screen drawn by phone.js
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.3, 0.02), new THREE.MeshBasicMaterial({ color: 0x15151a, depthTest: false }));
+      const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.27), new THREE.MeshBasicMaterial({ map: this.g.phone.texture, depthTest: false }));
+      screen.position.z = 0.0105; screen.renderOrder = 1001; body.add(screen);
+      body.scale.setScalar(0.72); body.rotation.set(-0.2, -0.35, 0.05); body.position.set(0.34, -0.2, -0.6);
+      mesh = body;
+    } else if (isBlockItem(key) && BLOCKS[key].model !== 'cross' && !BLOCKS[key].icon) {
       mesh = new THREE.Mesh(blockGeometry(THREE, this.g.atlas, key, 0.34), this.blockMat);
       mesh.rotation.set(0.25, -0.65, 0); mesh.position.set(0.48, -0.42, -0.72);
     } else {
-      const tile = isBlockItem(key) ? faceTile(BLOCKS[key], 'top') : ITEMS[key].tile;
+      const tile = isBlockItem(key) ? BLOCKS[key].icon || faceTile(BLOCKS[key], 'top') : ITEMS[key].tile;
       const m = new THREE.MeshBasicMaterial({ map: this.tex(tile), transparent: true, alphaTest: 0.4, depthTest: false, side: THREE.DoubleSide });
       mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.48), m);
       mesh.rotation.set(0.15, -0.75, 0.35); mesh.position.set(0.5, -0.36, -0.75);

@@ -44,6 +44,11 @@ export const sfx = {
       case 'portal': tone(1.2, 200, 500, 0.12, 'sine'); tone(1.2, 303, 700, 0.06, 'sine'); break;
       case 'zombie': tone(0.35, 110, 70, 0.22, 'sawtooth'); break;
       case 'pig': tone(0.12, 260 * pitch, 180 * pitch, 0.2, 'square'); break;
+      case 'door': noise(0.12, 380 * pitch, 3, 0.5); tone(0.1, 140 * pitch, 90, 0.2, 'triangle'); break;
+      case 'piston': noise(0.14, 700 * pitch, 1.5, 0.45, 'bandpass', 0.5); tone(0.08, 220 * pitch, 120, 0.15, 'square'); break;
+      case 'hiss': noise(1.3, 3200, 0.8, 0.28, 'highpass', 0.6); break;
+      case 'boom': noise(1.4, 260, 0.4, 1.0, 'lowpass', 0.15); tone(0.9, 70, 30, 0.5, 'sine'); break;
+      case 'phone': tone(0.12, 880, 880, 0.12, 'sine'); setTimeout(() => ctx && tone(0.12, 1320, 1320, 0.12, 'sine'), 140); break;
       case 'fire': noise(0.25, 2500, 1, 0.35, 'highpass'); break;
     }
   },

@@ -87,6 +87,21 @@ export const BLOCKS = {
   // beds are two blocks (foot + head), 9/16 tall; `height` lowers the top face and the collision box
   bed_foot:         def({ name: 'Bed', faces: { top: 'bed_foot_top', bottom: 'oak_planks', side: 'bed_foot_side' }, hardness: 0.2, transparent: true, height: 0.5625, drops: null, interact: 'bed' }),
   bed_head:         def({ name: 'Bed', faces: { top: 'bed_head_top', bottom: 'oak_planks', side: 'bed_head_side' }, hardness: 0.2, transparent: true, height: 0.5625, drops: null, interact: 'bed' }),
+  // ---- redstone, pistons, slime/honey, doors (appended, see note above) ----
+  // model: custom mesh in chunkmesh.js. meta layouts are documented in redstone.js.
+  redstone_wire:  def({ name: 'Redstone Dust', faces: 'redstone_wire', solid: false, transparent: true, hardness: 0, drops: 'redstone_dust', model: 'wire', popsOff: true }),
+  lever:          def({ name: 'Lever', faces: 'cobblestone', solid: false, transparent: true, hardness: 0.5, model: 'lever', icon: 'lever_item', interact: 'lever', popsOff: true }),
+  redstone_block: def({ name: 'Block of Redstone', faces: 'redstone_block', hardness: 5, tool: 'pickaxe', tier: 1 }),
+  redstone_lamp:  def({ name: 'Redstone Lamp', faces: 'redstone_lamp', hardness: 0.3 }),
+  redstone_lamp_lit: def({ name: 'Redstone Lamp', faces: 'redstone_lamp_lit', hardness: 0.3, light: 15, drops: 'redstone_lamp' }),
+  piston:         def({ name: 'Piston', faces: { top: 'piston_top', bottom: 'piston_bottom', front: 'piston_top', back: 'piston_bottom', side: 'piston_side' }, hardness: 1.5, tool: 'pickaxe', model: 'directional' }),
+  sticky_piston:  def({ name: 'Sticky Piston', faces: { top: 'piston_top_sticky', bottom: 'piston_bottom', front: 'piston_top_sticky', back: 'piston_bottom', side: 'piston_side' }, hardness: 1.5, tool: 'pickaxe', model: 'directional' }),
+  piston_head:    def({ name: 'Piston Head', faces: 'piston_top', transparent: true, hardness: 1.5, drops: null, model: 'head' }),
+  observer:       def({ name: 'Observer', faces: { top: 'observer_side', bottom: 'observer_side', west: 'observer_front', front: 'observer_front', back: 'observer_back', side: 'observer_side' }, hardness: 3, tool: 'pickaxe', tier: 1, model: 'directional' }),
+  slime_block:    def({ name: 'Slime Block', faces: 'slime_block', transparent: true, blend: true, hardness: 0, sticky: true, bounce: true }),
+  honey_block:    def({ name: 'Honey Block', faces: 'honey_block', transparent: true, blend: true, hardness: 0, sticky: true, honey: true, friction: 0.4 }),
+  door_lower:     def({ name: 'Oak Door', faces: 'door_lower', transparent: true, hardness: 3, tool: 'axe', drops: null, model: 'door', interact: 'door', popsOff: true }),
+  door_upper:     def({ name: 'Oak Door', faces: 'door_upper', transparent: true, hardness: 3, tool: 'axe', drops: null, model: 'door', interact: 'door' }),
 };
 
 export const BLOCK_LIST = Object.keys(BLOCKS);
@@ -112,6 +127,14 @@ const toolset = (mat, tier, durability, dmg) => ({
   [`${mat}_sword`]:   item({ name: cap(mat) + ' Sword', tool: 'sword', tier, durability, damage: dmg + 1, stack: 1, tile: `${mat}_sword` }),
 });
 function cap(s) { return s[0].toUpperCase() + s.slice(1); }
+// Armor: slot 0 helmet, 1 chestplate, 2 leggings, 3 boots (the order of inv.armor). armor = protection points.
+export const ARMOR_PIECES = ['helmet', 'chestplate', 'leggings', 'boots'];
+const ARMOR_DUR = [11, 16, 15, 13];
+function armorset(mat, points, mult) {
+  const label = mat === 'gold' ? 'Golden' : cap(mat);
+  return Object.fromEntries(ARMOR_PIECES.map((piece, slot) => [`${mat}_${piece}`,
+    item({ name: `${label} ${cap(piece)}`, tile: `${mat}_${piece}`, stack: 1, armor: points[slot], armorSlot: slot, durability: ARMOR_DUR[slot] * mult })]));
+}
 
 export const ITEMS = {
   stick: item({ name: 'Stick', tile: 'stick' }),
@@ -121,7 +144,7 @@ export const ITEMS = {
   diamond: item({ name: 'Diamond', tile: 'diamond' }),
   emerald: item({ name: 'Emerald', tile: 'emerald' }),
   lapis_lazuli: item({ name: 'Lapis Lazuli', tile: 'lapis_lazuli' }),
-  redstone_dust: item({ name: 'Redstone Dust', tile: 'redstone_dust' }),
+  redstone_dust: item({ name: 'Redstone Dust', tile: 'redstone_dust', places: 'redstone_wire' }),
   quartz: item({ name: 'Nether Quartz', tile: 'quartz' }),
   netherite_scrap: item({ name: 'Netherite Scrap', tile: 'netherite_scrap' }),
   netherite_ingot: item({ name: 'Netherite Ingot', tile: 'netherite_ingot' }),
@@ -141,6 +164,15 @@ export const ITEMS = {
   cooked_mutton: item({ name: 'Cooked Mutton', tile: 'cooked_mutton', food: 6 }),
   feather: item({ name: 'Feather', tile: 'feather' }),
   leather: item({ name: 'Leather', tile: 'leather' }),
+  gunpowder: item({ name: 'Gunpowder', tile: 'gunpowder' }),
+  slime_ball: item({ name: 'Slimeball', tile: 'slime_ball' }),
+  oak_door: item({ name: 'Oak Door', tile: 'oak_door', use: 'door' }),
+  phone: item({ name: 'Phone', tile: 'phone', stack: 1, use: 'phone' }),
+  ...armorset('leather', [1, 3, 2, 1], 5),
+  ...armorset('gold', [2, 5, 3, 1], 7),
+  ...armorset('iron', [2, 6, 5, 2], 15),
+  ...armorset('diamond', [3, 8, 6, 3], 33),
+  ...armorset('netherite', [3, 8, 6, 3], 37),
   ...toolset('wood', 1, 59, 2),
   ...toolset('stone', 2, 131, 3),
   ...toolset('iron', 3, 250, 4),
@@ -171,6 +203,23 @@ export const RECIPES = [
   { pattern: ['NNN', 'NNN', 'NNN'], key: { N: 'netherite_ingot' }, result: { item: 'netherite_block', count: 1 } },
   { pattern: ['PPP', 'BBB', 'PPP'], key: { P: 'oak_planks', B: 'oak_planks' }, result: { item: 'bookshelf', count: 1 } },
   { pattern: ['WWW', 'PPP'], key: { W: 'white_wool', P: 'oak_planks' }, result: { item: 'bed', count: 1 } },
+  // redstone & friends
+  { pattern: ['GSG', 'SGS', 'GSG'], key: { G: 'gunpowder', S: 'sand' }, result: { item: 'tnt', count: 1 } },
+  { pattern: ['S', 'C'], key: { S: 'stick', C: 'cobblestone' }, result: { item: 'lever', count: 1 } },
+  { pattern: ['RRR', 'RRR', 'RRR'], key: { R: 'redstone_dust' }, result: { item: 'redstone_block', count: 1 } },
+  { pattern: ['PPP', 'CIC', 'CRC'], key: { P: 'oak_planks', C: 'cobblestone', I: 'iron_ingot', R: 'redstone_dust' }, result: { item: 'piston', count: 1 } },
+  { pattern: ['CCC', 'RRQ', 'CCC'], key: { C: 'cobblestone', R: 'redstone_dust', Q: 'quartz' }, result: { item: 'observer', count: 1 } },
+  { pattern: [' R ', 'RGR', ' R '], key: { R: 'redstone_dust', G: 'glowstone' }, result: { item: 'redstone_lamp', count: 1 } },
+  { pattern: ['SSS', 'SSS', 'SSS'], key: { S: 'slime_ball' }, result: { item: 'slime_block', count: 1 } },
+  { pattern: ['PP', 'PP', 'PP'], key: { P: 'oak_planks' }, result: { item: 'oak_door', count: 3 } },
+  { pattern: ['G', 'R', 'I'], key: { G: 'glass', R: 'redstone_dust', I: 'iron_ingot' }, result: { item: 'phone', count: 1 } },
+  // armor
+  ...[['leather', 'leather'], ['iron', 'iron_ingot'], ['gold', 'gold_ingot'], ['diamond', 'diamond']].flatMap(([mat, m]) => [
+    { pattern: ['MMM', 'M M'], key: { M: m }, result: { item: `${mat}_helmet`, count: 1 } },
+    { pattern: ['M M', 'MMM', 'MMM'], key: { M: m }, result: { item: `${mat}_chestplate`, count: 1 } },
+    { pattern: ['MMM', 'M M', 'M M'], key: { M: m }, result: { item: `${mat}_leggings`, count: 1 } },
+    { pattern: ['M M', 'M M'], key: { M: m }, result: { item: `${mat}_boots`, count: 1 } },
+  ]),
   ...['iron_ingot', 'gold_ingot', 'diamond', 'lapis_lazuli', 'emerald', 'coal'].map((m) => ({
     pattern: ['MMM', 'MMM', 'MMM'], key: { M: m },
     result: { item: m.replace('_ingot', '').replace('lapis_lazuli', 'lapis') + '_block', count: 1 },
@@ -197,6 +246,12 @@ export const SHAPELESS = [
   { inputs: { diamond_axe: 1, netherite_ingot: 1 }, result: { item: 'netherite_axe', count: 1 } },
   { inputs: { diamond_shovel: 1, netherite_ingot: 1 }, result: { item: 'netherite_shovel', count: 1 } },
   { inputs: { diamond_sword: 1, netherite_ingot: 1 }, result: { item: 'netherite_sword', count: 1 } },
+  ...['helmet', 'chestplate', 'leggings', 'boots'].map((piece) => ({ inputs: { [`diamond_${piece}`]: 1, netherite_ingot: 1 }, result: { item: `netherite_${piece}`, count: 1 } })),
+  { inputs: { piston: 1, slime_ball: 1 }, result: { item: 'sticky_piston', count: 1 } },
+  { inputs: { redstone_block: 1 }, result: { item: 'redstone_dust', count: 9 } },
+  { inputs: { slime_block: 1 }, result: { item: 'slime_ball', count: 9 } },
+  // no bees here, so honey is slime sweetened with gold
+  { inputs: { slime_block: 1, gold_ingot: 1 }, result: { item: 'honey_block', count: 1 } },
 ];
 
 // Creative / showcase palette order (also the default creative inventory order).
@@ -207,4 +262,5 @@ export const CREATIVE_ORDER = [
   'coal_block', 'iron_block', 'gold_block', 'lapis_block', 'diamond_block', 'emerald_block', 'netherite_block',
   'netherrack', 'soul_sand', 'glowstone', 'nether_bricks', 'magma', 'nether_quartz_ore', 'nether_gold_ore', 'ancient_debris', 'lava', 'obsidian', 'nether_portal', 'bedrock',
   'end_stone', 'end_portal_frame', 'end_portal_frame_filled',
+  'redstone_block', 'lever', 'redstone_lamp', 'piston', 'sticky_piston', 'observer', 'slime_block', 'honey_block',
 ];

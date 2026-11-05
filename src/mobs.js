@@ -18,12 +18,12 @@ import { sfx } from './sfx.js';
 import { Sky } from './sky.js';
 
 const MAX_MOBS = 26;
-const LIMITS = { pig: 5, cow: 5, sheep: 5, chicken: 5, zombie: 10, piglin: 6, wisp: 4, enderman: 6 };
+const LIMITS = { pig: 5, cow: 5, sheep: 5, chicken: 5, zombie: 10, creeper: 6, piglin: 6, wisp: 4, enderman: 6 };
 const ANIMALS = ['pig', 'cow', 'sheep', 'chicken'];
 // kind -> [[item, min, max], ...]
 const DROPS = {
   pig: [['porkchop', 1, 3]], cow: [['raw_beef', 1, 3], ['leather', 0, 2]], sheep: [['white_wool', 1, 2], ['raw_mutton', 1, 2]],
-  chicken: [['raw_chicken', 1, 1], ['feather', 0, 2]], piglin: [['gold_ingot', 1, 1]], wisp: [['blaze_rod', 1, 1]], enderman: [['ender_pearl', 1, 1]],
+  chicken: [['raw_chicken', 1, 1], ['feather', 0, 2]], piglin: [['gold_ingot', 1, 1]], creeper: [['gunpowder', 0, 2]], zombie: [['slime_ball', 0, 1]], wisp: [['blaze_rod', 1, 1]], enderman: [['ender_pearl', 1, 1]],
 };
 const VOICE = { pig: ['pig', 1], cow: ['pig', 0.55], sheep: ['pig', 1.35], chicken: ['pig', 2.1], enderman: ['zombie', 0.6] };
 const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
@@ -49,7 +49,7 @@ export class Mobs {
     rig.group.position.set(x, y, z); this.group.add(rig.group);
     const m = { kind, def, rig, x, y, z, vx: 0, vy: 0, vz: 0, w: def.width, h: def.height, heading: Math.random() * 6.28, hp: def.hp || 10, maxHp: def.hp || 10,
       wanderT: 0, tx: x, tz: z, moving: false, attackCd: 1, attackAnim: 0, hurt: 0, dying: 0, despawnT: 0, fireT: 2 + Math.random() * 2, onGround: false, head: 0,
-      angry: false, panic: 0 };
+      angry: false, panic: 0, fuse: 0 };
     this.list.push(m);
     return m;
   }
@@ -77,6 +77,7 @@ export class Mobs {
           if (OPAQUE[dim.getId(ax, y, az)] && !OPAQUE[dim.getId(ax, y + 1, az)] && !OPAQUE[dim.getId(ax, y + 2, az)]) this.spawnAt(animal, ax + 0.5, y + 1, az + 0.5);
         }
       } else if (light < 0.3 && Math.random() < 0.08 && this.count('enderman') < 2) { if (!OPAQUE[dim.getId(x, y + 3, z)]) this.spawnAt('enderman', x + 0.5, y + 1, z + 0.5); }
+      else if (light < 0.3 && Math.random() < 0.4 && this.count('creeper') < LIMITS.creeper) this.spawnAt('creeper', x + 0.5, y + 1, z + 0.5);
       else if (light < 0.3 && this.count('zombie') < LIMITS.zombie) this.spawnAt('zombie', x + 0.5, y + 1, z + 0.5);
     } else if (dim.name === 'end') {
       if (this.count('enderman') >= LIMITS.enderman) return;
@@ -131,6 +132,14 @@ export class Mobs {
     if (m.hp <= 0 && !m.dying) { m.dying = 0.001; this.drop(m); if (!g.creative) g.addXP(0.2); }
     else if (m.kind === 'enderman' && Math.random() < 0.4) this.teleport(m);
   }
+  // damage from anything other than the player's hand (explosions)
+  hurt(m, dmg) {
+    if (m.dying || dmg <= 0) return;
+    m.hp -= dmg; m.hurt = 0.25;
+    if (m.hp <= 0) { m.dying = 0.001; this.drop(m); }
+    else if (m.def.neutral) m.angry = true;
+    else if (!m.def.hostile) m.panic = 4;
+  }
   // endermen blink away when hurt: try a few spots within 8 blocks
   teleport(m) {
     const dim = this.g.dim;
@@ -182,7 +191,15 @@ export class Mobs {
       m.panic = Math.max(0, m.panic - dt);
       const near = !p.dead && (def.hostile || m.angry) && dist < (flying ? 24 : 16) && Math.abs(m.y - p.y) < 12 && !g.creative && this.canSee(eye, pe);
       let wantX = 0, wantZ = 0, speed = def.speed;
-      if (near) {
+      // creepers: hiss when close, blow up after 1.5 s, calm down if you run away
+      if (def.explodes) {
+        if (near && dist < 3) { if (m.fuse === 0) sfx.play('hiss'); m.fuse += dt; }
+        else if (m.fuse > 0 && (!near || dist > 7)) m.fuse = Math.max(0, m.fuse - dt);
+        else if (m.fuse > 0) m.fuse += dt;
+        if (m.fuse >= 1.5) { this.remove(m); g.explosions.explode(m.x, m.y + 0.8, m.z, 3); continue; }
+      }
+      if (near && m.fuse > 0) { /* stand still and swell */ }
+      else if (near) {
         const dx = p.x - m.x, dz = p.z - m.z, l = Math.hypot(dx, dz) || 1;
         wantX = dx / l; wantZ = dz / l;
         m.tx = p.x; m.tz = p.z;
@@ -215,7 +232,7 @@ export class Mobs {
       const hv = Math.hypot(m.vx, m.vz);
       if (hv > 0.25) { const target = Math.atan2(m.vx, m.vz); m.heading += angDiff(m.heading, target) * Math.min(1, dt * 8); }
       // attack
-      if (near && dist < (flying ? 99 : 1.5) && Math.abs(p.y - m.y) < 1.8 && !flying && m.attackCd <= 0) {
+      if (near && !def.explodes && dist < (flying ? 99 : 1.5) && Math.abs(p.y - m.y) < 1.8 && !flying && m.attackCd <= 0) {
         m.attackCd = 1.25; m.attackAnim = 1;
         if (p.damage(def.damage, 'mob')) { const dx = p.x - m.x, dz = p.z - m.z, l = Math.hypot(dx, dz) || 1; p.vx += dx / l * 6; p.vz += dz / l * 6; p.vy = Math.max(p.vy, 4); }
       }
@@ -227,6 +244,11 @@ export class Mobs {
       const l01 = Math.max(dim.getSky(Math.floor(m.x), Math.floor(m.y + 1), Math.floor(m.z)) / 15 * g.sky.dayFactor, dim.getBlockLight(Math.floor(m.x), Math.floor(m.y + 1), Math.floor(m.z)) / 15);
       const b = 0.4 + 0.6 * Math.min(1, l01 + (dim.name !== 'overworld' ? 0.3 : 0));
       if (m.hurt > 0) m.rig.material.color.setRGB(1, 0.35 + b * 0.0, 0.35); else m.rig.material.color.setScalar(b);
+      if (m.fuse > 0) {   // swell and flash white
+        const k = m.fuse / 1.5, flash = Math.floor(m.fuse * (4 + k * 8)) % 2 === 0;
+        m.rig.root.scale.set(1 + k * 0.25, 1 + k * 0.12, 1 + k * 0.25);
+        if (flash) m.rig.material.color.setScalar(2.2);
+      } else m.rig.root.scale.setScalar(1);
       m.rig.group.position.set(m.x, m.y, m.z);
       m.rig.group.rotation.y = m.heading;
       m.rig.group.rotation.z = 0;

@@ -11,8 +11,11 @@ import { BLOCKS, BLOCK_LIST, BLOCK_ID, ITEMS, TIER, faceTile, isBlockItem, itemD
 import { raycast, collides } from './physics.js';
 import { SOLID, LIQUID, OPAQUE } from './tables.js';
 import { sfx } from './sfx.js';
+import { doorBox } from './redstone.js';
 
-const NETHER_PORTAL = BLOCK_ID.nether_portal, END_PORTAL = BLOCK_ID.end_portal;
+const NETHER_PORTAL = BLOCK_ID.nether_portal, END_PORTAL = BLOCK_ID.end_portal, DOOR_L = BLOCK_ID.door_lower, DOOR_U = BLOCK_ID.door_upper;
+// pick-block (middle click) on these gives the item you'd place them with
+const PICK_AS = { redstone_wire: 'redstone_dust', door_lower: 'oak_door', door_upper: 'oak_door', piston_head: 'piston', redstone_lamp_lit: 'redstone_lamp', furnace_lit: 'furnace', end_portal_frame_filled: 'end_portal_frame', bed_foot: 'bed', bed_head: 'bed' };
 const FACE_DIRS = { top: [0, 1, 0], bottom: [0, -1, 0], north: [0, 0, -1], south: [0, 0, 1], east: [1, 0, 0], west: [-1, 0, 0] };
 
 export class Interaction {
@@ -56,7 +59,18 @@ export class Interaction {
   pick() {
     const g = this.g, p = g.player, dim = g.dim;
     const { o, d, max } = this._ray();
-    const hit = raycast(dim, o.x, o.y, o.z, d.x, d.y, d.z, max, (id) => !LIQUID[id] && id !== NETHER_PORTAL && id !== END_PORTAL);
+    // doors are thin: only the panel itself stops the ray (so you can reach through an open doorway)
+    const hitDoor = (x, y, z) => {
+      const b = doorBox(dim.getMeta(x, y, z)), lo = [x + b[0], y, z + b[1]], hi = [x + b[2], y + 1, z + b[3]], oo = [o.x, o.y, o.z], dd = [d.x, d.y, d.z];
+      let t0 = 0, t1 = 1e9;
+      for (let i = 0; i < 3; i++) {
+        if (Math.abs(dd[i]) < 1e-9) { if (oo[i] < lo[i] || oo[i] > hi[i]) return false; continue; }
+        let a = (lo[i] - oo[i]) / dd[i], c = (hi[i] - oo[i]) / dd[i]; if (a > c) [a, c] = [c, a];
+        t0 = Math.max(t0, a); t1 = Math.min(t1, c); if (t0 > t1) return false;
+      }
+      return true;
+    };
+    const hit = raycast(dim, o.x, o.y, o.z, d.x, d.y, d.z, max, (id, x, y, z) => !LIQUID[id] && id !== NETHER_PORTAL && id !== END_PORTAL && ((id !== DOOR_L && id !== DOOR_U) || hitDoor(x, y, z)));
     let mob = g.mobs?.raycast(o, d, g.camMode === 'top' ? 60 : (g.creative ? 6 : 4.2));
     // reach limit from the player's body (matters in top-down where the ray is long)
     let block = hit;
@@ -132,6 +146,8 @@ export class Interaction {
       const s = (dx, dy, dz) => OPAQUE[dim.getId(x + dx, y + dy, z + dz)];
       if (!(s(0, -1, 0) || s(1, 0, 0) || s(-1, 0, 0) || s(0, 0, 1) || s(0, 0, -1))) return false;
     }
+    const special = g.redstone.place(t, key);
+    if (special !== undefined) { if (special) sfx.play('place', 0.9 + Math.random() * 0.2); return special; }
     if (key === 'water' && dim.name === 'nether') { g.particles.smoke(x + 0.5, y + 0.5, z + 0.5, 8); sfx.play('fire'); return true; }
     let meta;
     if (block.interact) { const dx = Math.sin(g.player.yaw), dz = Math.cos(g.player.yaw); meta = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 1 : 3) : (dz > 0 ? 2 : 0); }
@@ -146,8 +162,21 @@ export class Interaction {
     if (!def) return false;
     if (def.use === 'eye') return g.end.useEye(t, stack);
     if (def.use === 'bed') return g.beds.place(t);
+    if (def.use === 'door') return g.redstone.placeDoor(t);
+    if (def.use === 'phone') return g.phone.use();
+    if (def.armorSlot !== undefined) { if (!g.inv.equipHeld()) return false; g.refreshHotbar(); sfx.play('place', 1.5); g.hud.toast(`Wearing ${def.name}`, 1200); return true; }
+    if (def.places) {
+      if (!t) return false;
+      if (this.place(t, { item: def.places })) { if (!g.creative) g.inv.consumeHeld(1); g.refreshHotbar(); return true; }
+      return false;
+    }
     if (def.use === 'ignite') {
       if (!t) return false;
+      if (t.id === BLOCK_ID.tnt) {
+        g.explosions.prime(t.x, t.y, t.z);
+        stack.durability = (stack.durability ?? def.durability) - 1; if (stack.durability <= 0) g.inv.hotbar[g.inv.selected] = null; g.refreshHotbar(); sfx.play('fire');
+        return true;
+      }
       const ok = g.portals.tryIgnite(t);
       if (ok) { stack.durability = (stack.durability ?? def.durability) - 1; if (stack.durability <= 0) g.inv.hotbar[g.inv.selected] = null; g.refreshHotbar(); sfx.play('fire'); }
       return ok;
@@ -175,7 +204,7 @@ export class Interaction {
 
     // pick block
     if (input.clicked[1] && t) {
-      const key = BLOCK_LIST[t.id]; const k = BLOCKS[key].drops === undefined || !BLOCKS[key].drops ? key : key;
+      const key = BLOCK_LIST[t.id]; const k = PICK_AS[key] || key;
       const slot = inv.hotbar.findIndex((s) => s && s.item === k);
       if (slot >= 0) { inv.selected = slot; g.refreshHotbar(); }
       else if (g.creative) { const empty = inv.hotbar.findIndex((s) => !s); const i = empty >= 0 ? empty : inv.selected; inv.hotbar[i] = { item: k, count: 64 }; inv.selected = i; g.refreshHotbar(); }
@@ -221,7 +250,11 @@ export class Interaction {
         this.placeCd = 0.22;
         let done = false;
         const block = t ? BLOCKS[BLOCK_LIST[t.id]] : null;
-        if (t && block.interact && !g.player.sneaking) { g.openStation(block.interact, t); done = true; }
+        const hdef = held ? ITEMS[held.item] : null;
+        // levers, doors, the phone, armor and TNT lighting only react to a fresh click, not a held button
+        const clickOnly = (t && block.interact && !g.player.sneaking) || hdef?.use === 'phone' || hdef?.armorSlot !== undefined || (hdef?.use === 'ignite' && t?.id === BLOCK_ID.tnt);
+        if (clickOnly && !wasClick) { /* wait for the next click */ }
+        else if (t && block.interact && !g.player.sneaking) { g.openStation(block.interact, t); done = true; }
         else if (held && !isBlockItem(held.item)) done = this.use(t, held);
         else if (held && t && isBlockItem(held.item)) {
           if (held.item === 'flint_and_steel') done = false;

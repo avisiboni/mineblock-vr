@@ -16,7 +16,7 @@ const btn = (parent, label, fn, cls = '') => { const b = h('button', `btn ${cls}
 
 export function createTitleMenu(root, { onSingle, onShowcase }) {
   const s = screen(root);
-  const SPLASH = ['Now with 100% more blocks!', 'Also try the Nether!', 'Diamonds are forever', 'Watch out for lava', 'Procedurally painted!', 'Mind the creeper… wait, no creepers', 'Pig-approved'];
+  const SPLASH = ['Now with 100% more blocks!', 'Also try the Nether!', 'Diamonds are forever', 'Watch out for lava', 'Procedurally painted!', 'Mind the creeper… it hisses!', 'Now with redstone!', 'Call home on your phone', 'Pig-approved'];
   const logo = h('div', 'title-logo', s.col, 'MINEBLOCK');
   h('small', '', logo, SPLASH[(Math.random() * SPLASH.length) | 0]);
   btn(s.col, 'Singleplayer', onSingle); btn(s.col, 'Design Showcase', onShowcase);

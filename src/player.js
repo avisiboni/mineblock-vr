@@ -12,6 +12,8 @@ import { moveBox, collides, touches, PORTAL } from './physics.js';
 import { LIQUID } from './tables.js';
 
 const END_PORTAL = BLOCK_ID.end_portal;
+// damage that armor protects against (not falling, drowning, hunger or the void)
+const ARMORED = new Set(['mob', 'fireball', 'explosion', 'lava', 'magma', 'bed']);
 const moveToward = (v, t, d) => (v < t ? Math.min(t, v + d) : Math.max(t, v - d));
 
 export class Player {
@@ -44,6 +46,7 @@ export class Player {
 
   damage(n, why = '') {
     if (this.dead || this.invuln > 0 || n <= 0) return false;
+    if (this.armorReduce && ARMORED.has(why)) { n = this.armorReduce(n); if (n <= 0) { this.invuln = 0.5; this.onHurt?.(0, why); return true; } }
     this.hp = Math.max(0, this.hp - n); this.invuln = 0.5;
     this.onHurt?.(n, why);
     if (this.hp <= 0) this.dead = true;
@@ -87,6 +90,7 @@ export class Player {
     let speed = this.sneaking ? 1.3 : this.sprinting ? 5.6 : 4.3;
     if (liquid) speed = this.inLava ? 1.2 : 2.2;
     if (under.slow && this.onGround) speed *= 0.5;
+    if (under.honey && this.onGround) speed *= 0.4;
     if (this.flying) speed = this.sprinting ? 20 : 10.5;
     if (!allowInput) speed = 0;
 
@@ -112,7 +116,7 @@ export class Player {
       else this.vy = moveToward(this.vy, lava ? -0.9 : -1.8, 12 * dt);
     } else {
       this.vy = Math.max(-78, this.vy - 32 * dt);
-      if (wantUp && this.onGround) { this.vy = 8.75; this.onJump?.(); }
+      if (wantUp && this.onGround) { this.vy = under.honey ? 5 : 8.75; this.onJump?.(); }
     }
 
     // move (with sneak edge protection)
@@ -122,9 +126,15 @@ export class Player {
       while (mx !== 0 && !probe(mx, 0)) mx = Math.abs(mx) < 0.02 ? 0 : mx - Math.sign(mx) * 0.02;
       while (mz !== 0 && !probe(mx, mz)) mz = Math.abs(mz) < 0.02 ? 0 : mz - Math.sign(mz) * 0.02;
     }
-    const preY = this.y;
+    const preY = this.y, preVy = this.vy;
     this.wasGround = this.onGround;
     moveBox(dim, this, mx, this.vy * dt, mz);
+    // slime bounces you back up (unless sneaking); honey stops the fall dead
+    if (this.onGround && preVy < -2 && !this.flying) {
+      const land = BLOCKS[BLOCK_LIST[dim.getId(Math.floor(this.x), Math.floor(this.y - 0.1), Math.floor(this.z))]];
+      if (land.bounce) { this.fall = 0; if (!this.sneaking) { this.vy = -preVy * 0.85; this.onGround = false; this.hitY = false; this.onBounce?.(); } }
+      else if (land.honey) this.fall *= 0.2;
+    }
     if (this.hitX) this.vx = 0; if (this.hitZ) this.vz = 0;
     if (this.hitY) this.vy = 0;
     if (liquid && (this.hitX || this.hitZ) && wantUp) this.vy = Math.max(this.vy, 6.5);   // hop out of the water

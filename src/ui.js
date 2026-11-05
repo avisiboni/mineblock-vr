@@ -33,8 +33,8 @@ export function blockIcon(key, size = 48) {
   const block = BLOCKS[key];
   const c = document.createElement('canvas'); c.width = c.height = size;
   const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false;
-  if (block.model === 'cross') {
-    ctx.drawImage(tileCanvas(faceTile(block, 'top')), 0, 0, size, size);
+  if (block.model === 'cross' || block.icon) {
+    ctx.drawImage(tileCanvas(block.icon || faceTile(block, 'top')), 0, 0, size, size);
   } else {
     const S = size, top = tileCanvas(faceTile(block, 'top')), left = tileCanvas(faceTile(block, 'west')), right = tileCanvas(faceTile(block, 'south'));
     const draw = (img, A, B, D, shade) => {
@@ -151,6 +151,7 @@ export function showTooltip(x, y, stack) {
   const tier = def.tier >= 4 ? 'rare' : '';
   let html = `<span class="${tier}">${def.name}</span>`;
   if (def.tool) html += `<div class="sub">${def.tool} · tier ${def.tier}${def.damage ? ` · ${def.damage} dmg` : ''}</div>`;
+  if (def.armor) html += `<div class="sub">+${def.armor} armor</div>`;
   if (def.durability) html += `<div class="sub">Durability ${stack.durability ?? def.durability} / ${def.durability}</div>`;
   if (def.light) html += `<div class="sub">Light ${def.light}</div>`;
   tipEl.innerHTML = html;

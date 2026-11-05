@@ -85,6 +85,16 @@ const ENDERMAN = {
   legL: { size: [2, 28, 2], uv: [8, 32], pivot: [2, 28, 0], offset: [0, -14, 0] },
 };
 
+// Creeper: tall body on four stubby legs, no arms
+const CREEPER = {
+  head: { size: [8, 8, 8], uv: [0, 0], pivot: [0, 18, 0], offset: [0, 4, 0] },
+  body: { size: [8, 12, 4], uv: [16, 16], pivot: [0, 18, 0], offset: [0, -6, 0] },
+  legFR: { size: [4, 6, 4], uv: [0, 16], pivot: [-2, 6, 4], offset: [0, -3, 0] },
+  legFL: { size: [4, 6, 4], uv: [0, 16], pivot: [2, 6, 4], offset: [0, -3, 0] },
+  legBR: { size: [4, 6, 4], uv: [0, 16], pivot: [-2, 6, -4], offset: [0, -3, 0] },
+  legBL: { size: [4, 6, 4], uv: [0, 16], pivot: [2, 6, -4], offset: [0, -3, 0] },
+};
+
 // type: which animation drives the rig. rigH: model height in blocks (px / 16) before scaling to `height`.
 export const CHARACTERS = {
   player: { rig: HUMANOID, type: 'humanoid', rigH: 2, skin: 'player', height: 1.8, width: 0.6, eyeHeight: 1.62, speed: 4.3, hostile: false },
@@ -95,6 +105,7 @@ export const CHARACTERS = {
   cow: { rig: COW, type: 'quadruped', rigH: 1.5, skin: 'cow', height: 1.4, width: 0.9, eyeHeight: 1.2, speed: 1.6, hostile: false, hp: 10, dimension: 'overworld', spawnLight: 'bright' },
   sheep: { rig: SHEEP, type: 'quadruped', rigH: 1.4, skin: 'sheep', height: 1.3, width: 0.9, eyeHeight: 1.1, speed: 1.6, hostile: false, hp: 8, dimension: 'overworld', spawnLight: 'bright' },
   chicken: { rig: CHICKEN, type: 'chicken', rigH: 0.95, skin: 'chicken', height: 0.7, width: 0.45, eyeHeight: 0.6, speed: 1.4, hostile: false, hp: 4, dimension: 'overworld', spawnLight: 'bright' },
+  creeper: { rig: CREEPER, type: 'quadruped', rigH: 1.625, skin: 'creeper', height: 1.7, width: 0.6, eyeHeight: 1.45, speed: 2.4, hostile: true, hp: 20, damage: 0, dimension: 'overworld', spawnLight: 'dark', explodes: true },
   // neutral: only attacks after being hit
   enderman: { rig: ENDERMAN, type: 'humanoid', rigH: 3, skin: 'enderman', height: 2.9, width: 0.6, eyeHeight: 2.55, speed: 3.2, hostile: false, neutral: true, hp: 40, damage: 5, dimension: 'end' },
 };
@@ -223,6 +234,17 @@ const SKINS = {
     // head front (8..16, 8..16): glowing purple eyes
     ctx.fillStyle = '#d97cf7'; ctx.fillRect(8, 12, 3, 1); ctx.fillRect(13, 12, 3, 1);
     px(ctx, 9, 12, '#f2c6ff'); px(ctx, 14, 12, '#f2c6ff');
+  },
+  creeper: (ctx) => {
+    const cols = ['#4fa83a', '#5cbf45', '#3e8a2c', '#7ad05e', '#2f6e22', '#93db7a'];
+    let sd = 41; const rnd = () => ((sd = (sd * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 64; x++) { ctx.fillStyle = cols[(rnd() * cols.length) | 0]; ctx.fillRect(x, y, 1, 1); }
+    // face on head front (8..16, 8..16)
+    ctx.fillStyle = '#0e0e0e';
+    ctx.fillRect(9, 10, 2, 2); ctx.fillRect(13, 10, 2, 2);
+    ctx.fillRect(11, 12, 2, 2); ctx.fillRect(10, 13, 4, 2); ctx.fillRect(10, 15, 1, 1); ctx.fillRect(13, 15, 1, 1);
+    // dark feet
+    ['right', 'left', 'front', 'back'].forEach((k) => { const [x, y, w, h] = boxRegions(0, 16, 4, 6, 4)[k]; ctx.fillStyle = '#2f5a24'; ctx.fillRect(x, y + h - 1, w, 1); });
   },
   wisp: (ctx) => {
     const body = boxRegions(0, 0, 16, 16, 16);

@@ -58,12 +58,16 @@ export class Inventory {
     const s = arr[index];
     if (shift) {
       if (!s) return;
+      // shift-click armor: put it on (or take it off)
+      const slot = itemDef(s.item)?.armorSlot;
+      if (section !== 'armor' && slot !== undefined && !this.armor[slot]) { this.armor[slot] = s; arr[index] = null; this.updateCraft(); return; }
+      if (section === 'armor') { const left = this._addTo(this.main, s); arr[index] = left > 0 ? { ...s, count: left } : null; if (left > 0) { const l2 = this._addTo(this.hotbar, arr[index]); arr[index] = l2 > 0 ? { ...s, count: l2 } : null; } this.updateCraft(); return; }
       const target = section === 'hotbar' ? this.main : this.hotbar;
       const left = this._addTo(target, s);
       arr[index] = left > 0 ? { ...s, count: left } : null;
       this.updateCraft(); return;
     }
-    if (section === 'armor' && this.cursor && !this._isArmor(this.cursor.item)) return;
+    if (section === 'armor' && this.cursor && itemDef(this.cursor.item)?.armorSlot !== index) return;
     if (button === 2) { // right click
       if (!this.cursor && s) { const half = Math.ceil(s.count / 2); this.cursor = { ...s, count: half }; s.count -= half; if (s.count <= 0) arr[index] = null; }
       else if (this.cursor && (!s || (s.item === this.cursor.item && s.count < maxStack(s.item)))) {
@@ -80,7 +84,20 @@ export class Inventory {
     }
     this.updateCraft();
   }
-  _isArmor(item) { return /_(helmet|chestplate|leggings|boots)$/.test(item); }
+  _isArmor(item) { return itemDef(item)?.armorSlot !== undefined; }
+  // total armor points worn (0..20)
+  armorPoints() { return this.armor.reduce((a, s) => a + (s ? itemDef(s.item)?.armor || 0 : 0), 0); }
+  // put on the held armor piece (swapping with what's worn)
+  equipHeld() {
+    const s = this.held, slot = s && itemDef(s.item)?.armorSlot; if (slot === undefined) return false;
+    this.hotbar[this.selected] = this.armor[slot]; this.armor[slot] = s; return true;
+  }
+  // wear down every worn piece by n (armor breaks at 0)
+  damageArmor(n = 1) {
+    let broke = false;
+    this.armor.forEach((s, i) => { if (s && s.durability !== undefined) { s.durability -= n; if (s.durability <= 0) { this.armor[i] = null; broke = true; } } });
+    return broke;
+  }
   _addTo(target, stack) {
     let count = stack.count; const max = maxStack(stack.item);
     for (let i = 0; i < target.length && count > 0; i++) { const t = target[i]; if (t && t.item === stack.item && t.count < max && stack.durability === undefined) { const n = Math.min(max - t.count, count); t.count += n; count -= n; } }
@@ -113,7 +130,7 @@ export class Inventory {
     this.updateCraft();
   }
   toJSON() { return { main: this.main, hotbar: this.hotbar, armor: this.armor, selected: this.selected }; }
-  static fromJSON(j) { const inv = new Inventory(); Object.assign(inv, { main: j.main, hotbar: j.hotbar, armor: j.armor, selected: j.selected || 0 }); return inv; }
+  static fromJSON(j) { const inv = new Inventory(); Object.assign(inv, { main: j.main, hotbar: j.hotbar, armor: j.armor || new Array(4).fill(null), selected: j.selected || 0 }); return inv; }
 }
 
 // grid: array of stacks (4 => 2x2, 9 => 3x3). Returns {item,count} or null.

@@ -32,6 +32,9 @@ import { buildCharacter, animateCharacter } from './characters.js';
 import { saveGame, serialize, applyToWorld } from './save.js';
 import { sfx } from './sfx.js';
 import { XRSupport } from './xr.js';
+import { Redstone } from './redstone.js';
+import { Explosions } from './explosions.js';
+import { Phone } from './phone.js';
 
 const STEP = 1 / 60;
 const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
@@ -52,6 +55,7 @@ export class Game {
     this.input = new Input(canvas);
     initIcons(atlas);
     this.hud = createHUD(ui); this.hud.el.classList.add('hidden');
+    { const toast = this.hud.toast; this.hud.toast = (msg, ms) => { toast(msg, ms); this.xr?.inv?.showMessage(msg, ms); }; }   // toasts also show on the VR wrist
     this.inv = new Inventory();
     this.player = new Player();
     this.particles = new Particles(this.scene, atlas, this.mats.texture);
@@ -63,6 +67,9 @@ export class Game {
     this.end = new EndPortals(this);
     this.beds = new Beds(this);
     this.sim = new Simulation(this);
+    this.redstone = new Redstone(this);
+    this.explosions = new Explosions(this);
+    this.phone = new Phone(this);
     this.cams = new CameraRig(this);
     this.viewmodel = new ViewModel(this);
     this.xr = new XRSupport(this);
@@ -182,6 +189,8 @@ export class Game {
   openStation(kind, t) {
     const vr = this.xr.active;   // in the headset, stations open the floating VR panel instead of the page UI
     if (kind === 'bed') this.beds.use(t);
+    else if (kind === 'lever') this.redstone.toggleLever(t);
+    else if (kind === 'door') this.redstone.toggleDoor(t);
     else if (kind === 'crafting') { if (vr) this.xr.inv.open('craft'); else this.openPanel('craft'); }
     else if (kind === 'furnace') {
       const k = `${t.x},${t.y},${t.z}`;
@@ -260,6 +269,14 @@ export class Game {
     p.onHurt = (n, why) => { this.hud.hurt(); this.hurtTint = 0.3; this.shake = 1; this.hurtRoll = (Math.random() < 0.5 ? -1 : 1) * 0.05; sfx.play('hurt'); };
     p.onLand = (f) => sfx.play('place', 0.5);
     p.onSplash = () => sfx.play('splash');
+    p.onBounce = () => sfx.play('pop', 0.6);
+    // worn armor soaks up part of the damage (4% per armor point) and wears down
+    p.armorReduce = (n) => {
+      const pts = this.inv.armorPoints(); if (!pts) return n;
+      if (this.inv.damageArmor(1)) { this.hud.toast('Your armor broke!', 1500); sfx.play('dig', 0.5); }
+      const r = n * (1 - Math.min(20, pts) / 25);
+      return Math.floor(r) + (Math.random() < r % 1 ? 1 : 0);
+    };
   }
 
   // ------------------------------------------------------------ pause / death
@@ -289,7 +306,7 @@ export class Game {
     this.teardown();
     this.world = new World(data ? data.seed : seed);
     if (data) applyToWorld(this.world, data);
-    for (const d of Object.values(this.world.dims)) this.sim.attach(d);
+    for (const d of Object.values(this.world.dims)) { this.sim.attach(d); this.redstone.attach(d); }
     this.slot = slot; this.worldName = name; this.created = data?.created || Date.now();
     this.creative = data ? !!data.creative : !!creative;
     this.time = data?.time ?? 60; this.renderDist = data?.renderDist || this.renderDist;
@@ -334,7 +351,7 @@ export class Game {
     const p = this.player;
     this.dimName = name; this.dim = this.world.dims[name];
     this.chunks.setDimension(this.dim);
-    this.mobs.clear(); this.drops.clear(); this.particles.clear(); this.falling.clear(); this.sim.clear(); this.end.clear();
+    this.mobs.clear(); this.drops.clear(); this.particles.clear(); this.falling.clear(); this.sim.clear(); this.end.clear(); this.redstone.clear(); this.explosions.clear();
     const pos = how === 'spawn' ? this.spawnArrival(this.dim) : how === 'end' ? this.end.arrive(this.dim) : this.portals.arrive(this.dim, x, y, z);
     p.teleport(pos.x, pos.y, pos.z); if (pos.yaw !== undefined) p.yaw = pos.yaw;
     p.vx = p.vy = p.vz = 0; p.fall = 0;
@@ -353,7 +370,7 @@ export class Game {
   }
 
   teardown() {
-    this.mobs.clear(); this.drops.clear(); this.particles.clear(); this.falling.clear(); this.sim.clear(); this.end?.clear();
+    this.mobs.clear(); this.drops.clear(); this.particles.clear(); this.falling.clear(); this.sim.clear(); this.end?.clear(); this.redstone?.clear(); this.explosions?.clear();
     this.chunks.clear(); this.closePanelSilently(); sfx.portalHum(false);
     this.hud.setTint('none', false);
   }
@@ -440,6 +457,9 @@ export class Game {
     // subsystems
     this.interact.update(dt);
     this.sim.update(dt);
+    this.redstone.update(dt);
+    this.explosions.update(dt);
+    this.phone.update(dt);
     this.portals.update(dt);
     this.end.update(dt);
     this.beds.update(dt);
@@ -477,7 +497,7 @@ export class Game {
     if (L.hunger !== p.hunger) { hud.setHunger(p.hunger); L.hunger = p.hunger; }
     const air = Math.ceil(p.air) / 10; if (L.air !== air) { hud.setAir(air); L.air = air; }
     if (L.xp !== p.xp) { hud.setXP(p.xp); L.xp = p.xp; }
-    if (L.armor === undefined) { hud.setArmor(0); L.armor = 0; }
+    const armor = this.creative ? 0 : this.inv.armorPoints(); if (L.armor !== armor) { hud.setArmor(armor); L.armor = armor; }
     // screen tint priority: hurt > portal > lava > water
     this.hurtTint = Math.max(0, this.hurtTint - dt);
     const kind = this.hurtTint > 0 ? 'hurt' : this.portals.progress > 0.02 ? 'portal' : p.eyeMedium === 'lava' ? 'lava' : p.eyeMedium === 'water' ? 'water' : null;

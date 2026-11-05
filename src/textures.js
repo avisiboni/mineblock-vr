@@ -737,6 +737,169 @@ const HIDE = [
   '................',
 ];
 
+
+// ------------------------------------------------- redstone, pistons, doors
+const RS = { off: hex('#5c0a0a'), offLight: hex('#7a1212'), on: hex('#ff2a1a'), onLight: hex('#ff9a7a'), dark: hex('#8a0000') };
+function wire(px, rand, on) {
+  // a solid red patch; the mesher cuts the line shapes out of it
+  px.noise(rand, on ? RS.on : RS.off, 0.12);
+  px.speckle(rand, on ? RS.onLight : RS.offLight, 22);
+}
+function redstoneBlock(px, rand) {
+  px.noise(rand, hex('#b01a0a'), 0.1);
+  for (let i = 0; i < 14; i++) { const x = (rand() * 14) | 0, y = (rand() * 14) | 0; px.rect(x, y, 2, 2, hex('#e83a20')); px.set(x, y, hex('#ff8a6a')); }
+  px.bevel(hex('#d83018'), hex('#6a0a04'));
+}
+function lamp(px, rand, lit) {
+  px.noise(rand, lit ? hex('#f0c070') : hex('#5a3a22'), 0.08);
+  const c = lit ? hex('#fff2c0') : hex('#8a6a42'), d = lit ? hex('#d08a3a') : hex('#3a2414');
+  for (let y = 2; y < 14; y += 4) for (let x = 2; x < 14; x += 4) { px.rect(x, y, 3, 3, c); px.set(x + 2, y + 2, d); }
+  px.border(lit ? hex('#b07030') : hex('#2a1a0e'));
+}
+function pistonTop(px, rand, sticky) {
+  planks(px, rand);
+  px.border(C.stoneDark);
+  if (sticky) { px.rect(1, 1, 14, 14, hex('#7cc45a'), 255); px.speckle(rand, hex('#a8e888'), 18); px.speckle(rand, hex('#5a9a40'), 14); px.border(C.stoneDark); }
+}
+function pistonSide(px, rand) {
+  // the top 4 rows are the wooden head, the rest cobblestone (the texture's "up" faces the push direction)
+  cobble(px, rand);
+  px.rect(0, 0, 16, 4, C.planks); px.hline(0, 15, 0, C.planksLight); px.hline(0, 15, 3, C.planksDark);
+  px.rect(6, 4, 4, 5, C.ironDark); px.vline(6, 4, 8, hex('#c8c8c8'));
+}
+function pistonBottom(px, rand) { cobble(px, rand); px.rect(5, 5, 6, 6, C.stoneDark); px.rect(6, 6, 4, 4, hex('#3a3a3a')); }
+function pistonInner(px, rand) { cobble(px, rand); px.rect(5, 5, 6, 6, C.planks); px.border(C.stoneDark); }
+function observerFront(px, rand) {
+  cobble(px, rand, hex('#6a6a6a'), hex('#444444'));
+  px.rect(2, 4, 12, 7, hex('#3a3a3a')); px.rect(3, 5, 4, 5, hex('#222')); px.rect(9, 5, 4, 5, hex('#222'));
+  px.rect(4, 6, 2, 2, hex('#9a9a9a')); px.rect(10, 6, 2, 2, hex('#9a9a9a'));
+  px.rect(5, 12, 6, 2, hex('#444'));
+}
+function observerBack(px, rand, lit) {
+  cobble(px, rand, hex('#6a6a6a'), hex('#444444'));
+  px.rect(6, 6, 4, 4, hex('#333')); px.rect(7, 7, 2, 2, lit ? hex('#ff3a20') : hex('#5a0a0a'));
+  if (lit) { px.set(6, 7, hex('#ff8a6a')); px.set(9, 8, hex('#ff8a6a')); }
+}
+function observerSide(px, rand) {
+  // arrow points "up" in the texture = the direction the face looks
+  cobble(px, rand, hex('#6a6a6a'), hex('#444444'));
+  px.rect(7, 4, 2, 9, hex('#c8c8c8'));
+  px.hline(5, 10, 5, hex('#c8c8c8')); px.hline(6, 9, 4, hex('#c8c8c8')); px.hline(4, 11, 6, hex('#c8c8c8'));
+}
+function slimeBlock(px, rand) {
+  px.fill(hex('#76c25a'), 150);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if (rand() < 0.15) px.set(x, y, hex('#8fd872'), 150);
+  px.rect(4, 4, 8, 8, hex('#5aa040'), 210); px.rect(5, 5, 6, 6, hex('#6bb64e'), 210);
+  px.set(5, 5, hex('#b8f0a0'), 230);
+  for (let i = 0; i < 16; i++) { px.set(i, 0, hex('#5a9a40'), 200); px.set(i, 15, hex('#5a9a40'), 200); px.set(0, i, hex('#5a9a40'), 200); px.set(15, i, hex('#5a9a40'), 200); }
+}
+function honeyBlock(px, rand) {
+  px.fill(hex('#f2a92a'), 190);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if (rand() < 0.18) px.set(x, y, hex('#ffc84a'), 190);
+  px.rect(2, 2, 12, 12, hex('#e8962a'), 200); px.speckle(rand, hex('#ffd870'), 10, 220);
+  for (let i = 0; i < 16; i++) { px.set(i, 0, hex('#c87a18'), 230); px.set(i, 15, hex('#c87a18'), 230); px.set(0, i, hex('#c87a18'), 230); px.set(15, i, hex('#c87a18'), 230); }
+}
+function doorTile(px, rand, upper) {
+  planks(px, rand);
+  px.border(C.planksDark);
+  if (upper) {
+    // two small windows
+    px.rect(3, 3, 4, 5, hex('#1e2a30')); px.rect(9, 3, 4, 5, hex('#1e2a30'));
+    px.set(3, 3, hex('#5a7a88')); px.set(9, 3, hex('#5a7a88'));
+    px.hline(1, 14, 11, C.planksDark);
+  } else {
+    px.rect(3, 2, 10, 5, C.planksDark); px.rect(4, 3, 8, 3, C.planks);
+    px.rect(3, 9, 10, 5, C.planksDark); px.rect(4, 10, 8, 3, C.planks);
+    px.rect(12, 0, 2, 2, hex('#3a3a3a'));
+  }
+}
+const LEVER_ICON = [
+  '................',
+  '..........rr....',
+  '.........rrr....',
+  '.........hr.....',
+  '........hH......',
+  '.......hH.......',
+  '......hH........',
+  '.....hH.........',
+  '....hH..........',
+  '..ccccccccc.....',
+  '..cCCCCCCCc.....',
+  '..cCCCCCCCc.....',
+  '..ccccccccc.....',
+  '................',
+  '................',
+  '................',
+];
+const DUST = [
+  '................',
+  '................',
+  '................',
+  '.......d........',
+  '.....dMd.d......',
+  '....dMLMMd......',
+  '...dMMMMMMd.....',
+  '...MMLMMMLMd....',
+  '..dMMMMMMMMd....',
+  '..dMMMLMMMMMd...',
+  '...dMMMMMLMd....',
+  '....ddMMMdd.....',
+  '......ddd.......',
+  '................',
+  '................',
+  '................',
+];
+const DOOR_ICON = [
+  '....pppppppp....',
+  '....pPPPPPPp....',
+  '....pGGpGGPp....',
+  '....pGGpGGPp....',
+  '....pPPPPPPp....',
+  '....pPPPPPPp....',
+  '....pPPPPPPp....',
+  '....pppppppp....',
+  '....pPPPPPPp....',
+  '....pPPPPkkp....',
+  '....pPPPPPPp....',
+  '....pPPPPPPp....',
+  '....pPPPPPPp....',
+  '....pPPPPPPp....',
+  '....pPPPPPPp....',
+  '....pppppppp....',
+];
+const PHONE = [
+  '................',
+  '.....kkkkkk.....',
+  '....kddddddk....',
+  '....kdSSSSdk....',
+  '....kdSsSSdk....',
+  '....kdSSSSdk....',
+  '....kdSSsSdk....',
+  '....kdSSSSdk....',
+  '....kdSSSSdk....',
+  '....kdSSSSdk....',
+  '....kdSSSSdk....',
+  '....kddddddk....',
+  '....kddrrddk....',
+  '....kddddddk....',
+  '.....kkkkkk.....',
+  '................',
+];
+const ARMOR_SHAPES = {
+  helmet: ['................', '................', '................', '....dMMMMMMd....', '...dMLLMMMMMd...', '...MLMMMMMMMM...', '...MMMMMMMMMM...', '...MMd....dMM...', '...MM......MM...', '...dd......dd...', '................', '................', '................', '................', '................', '................'],
+  chestplate: ['................', '...dMd....dMd...', '..dMMMd..dMMMd..', '..MLMMMddMMMMM..', '..MLMMMMMMMMMM..', '..dMMMMMMMMMMd..', '...dMLMMMMMMd...', '....MLMMMMMM....', '....MMMMMMMM....', '....MMMMMMMM....', '....MMMMMMMM....', '....dMMMMMMd....', '....dddddddd....', '................', '................', '................'],
+  leggings: ['................', '................', '....dMMMMMMd....', '....MLMMMMMM....', '....MLMMMMMM....', '....MLMddMMM....', '....MMM..MMM....', '....MLM..MMM....', '....MMM..MMM....', '....MLM..MMM....', '....MMM..MMM....', '....MMM..MMM....', '....ddd..ddd....', '................', '................', '................'],
+  boots: ['................', '................', '................', '................', '................', '................', '...dMd....dMd...', '...MLM....MLM...', '...MLM....MLM...', '...MMM....MMM...', '..dMMM....MMMd..', '.dMMMM....MMMMd.', '.ddddd....ddddd.', '................', '................', '................'],
+};
+const ARMOR_MATS = {
+  leather: [hex('#5a3a1e'), hex('#8a5a32'), hex('#b07a48')],
+  gold: [hex('#b8860b'), hex('#f7d23e'), hex('#fff59a')],
+  iron: [hex('#8a8a8a'), hex('#d0d0d0'), hex('#ffffff')],
+  diamond: [hex('#2ea7ad'), hex('#4fe3e8'), hex('#bafcff')],
+  netherite: [hex('#241f22'), hex('#4d4448'), hex('#7a6e76')],
+};
+function armorIcon(px, piece, mat) { const m = ARMOR_MATS[mat]; px.fill(C.black, 0); px.map(ARMOR_SHAPES[piece], { d: [m[0]], M: [m[1]], L: [m[2]] }); }
+
 // ------------------------------------------------------------ tile registry
 // name -> painter(px, rand, frame). Order here = index order in the atlas.
 export const PAINTERS = {
@@ -807,6 +970,21 @@ export const PAINTERS = {
   raw_mutton: (px) => food(px, hex('#e05a50'), hex('#c04038'), hex('#f4f0e8')),
   cooked_mutton: (px) => food(px, hex('#9c5a34'), hex('#7a4020'), hex('#e8d8c0')),
   snowball: (px) => { px.fill(C.black, 0); px.rect(5, 5, 6, 6, C.snow); px.rect(4, 6, 8, 4, C.snow); px.rect(6, 4, 4, 8, C.snow); px.set(6, 6, C.white); px.set(9, 9, C.snowShade); },
+
+  // redstone, pistons, slime/honey, doors
+  redstone_wire: (px, r) => wire(px, r, false), redstone_wire_on: (px, r) => wire(px, r, true),
+  redstone_block: redstoneBlock, redstone_lamp: (px, r) => lamp(px, r, false), redstone_lamp_lit: (px, r) => lamp(px, r, true),
+  piston_top: (px, r) => pistonTop(px, r, false), piston_top_sticky: (px, r) => pistonTop(px, r, true),
+  piston_side: pistonSide, piston_bottom: pistonBottom, piston_inner: pistonInner,
+  observer_front: observerFront, observer_back: (px, r) => observerBack(px, r, false), observer_back_lit: (px, r) => observerBack(px, r, true), observer_side: observerSide,
+  slime_block: slimeBlock, honey_block: honeyBlock,
+  door_lower: (px, r) => doorTile(px, r, false), door_upper: (px, r) => doorTile(px, r, true),
+  lever_item: (px) => { px.fill(C.black, 0); px.map(LEVER_ICON, { r: [hex('#d8d8d8')], h: [MATERIALS.wood[2]], H: [MATERIALS.wood[1]], c: [C.stoneDark], C: [C.stone] }); },
+  gunpowder: (px) => { px.fill(C.black, 0); px.map(DUST, { d: [hex('#3a3a3a')], M: [hex('#5e5e5e')], L: [hex('#8a8a8a')] }); },
+  slime_ball: (px) => { px.fill(C.black, 0); px.map(ORB, { d: [hex('#3f8a2a')], M: [hex('#76c25a')], L: [hex('#c0f0a8')] }); },
+  oak_door: (px) => { px.fill(C.black, 0); px.map(DOOR_ICON, { p: [C.planksDark], P: [C.planks], G: [hex('#2a3a44')], k: [hex('#3a3a3a')] }); },
+  phone: (px) => { px.fill(C.black, 0); px.map(PHONE, { k: [hex('#111111')], d: [hex('#2a2a32')], S: [hex('#3a7ad8')], s: [hex('#9ad0ff')], r: [hex('#888')] }); },
+  ...Object.fromEntries(Object.keys(ARMOR_MATS).flatMap((m) => Object.keys(ARMOR_SHAPES).map((piece) => [`${m}_${piece}`, (px) => armorIcon(px, piece, m)]))),
   ...Object.fromEntries(['wood', 'stone', 'iron', 'gold', 'diamond', 'netherite'].flatMap((m) => [
     [`${m}_pickaxe`, (px) => tool(px, PICKAXE, m)],
     [`${m}_axe`, (px) => tool(px, AXE, m)],

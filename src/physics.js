@@ -6,8 +6,20 @@
 // ============================================================================
 import { SOLID, LIQUID, HEIGHT } from './tables.js';
 import { BLOCK_ID } from './blocks.js';
+import { doorBox } from './redstone.js';
 
 const EPS = 1e-4;
+
+// Collision box of a solid cell (world coords). Doors are thin panels, beds are low.
+const DOOR_L = BLOCK_ID.door_lower, DOOR_U = BLOCK_ID.door_upper;
+const BOX = [0, 0, 0, 0, 0, 0];
+function cellBox(dim, id, x, y, z) {
+  if (id === DOOR_L || id === DOOR_U) {
+    const b = doorBox(dim.getMeta(x, y, z));
+    BOX[0] = x + b[0]; BOX[1] = y; BOX[2] = z + b[1]; BOX[3] = x + b[2]; BOX[4] = y + 1; BOX[5] = z + b[3];
+  } else { BOX[0] = x; BOX[1] = y; BOX[2] = z; BOX[3] = x + 1; BOX[4] = y + HEIGHT[id]; BOX[5] = z + 1; }
+  return BOX;
+}
 
 // Move e along one axis (0=x,1=y,2=z) by a; returns the distance actually moved.
 function sweep(dim, e, axis, a) {
@@ -23,10 +35,12 @@ function sweep(dim, e, axis, a) {
   for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++) {
     const id = dim.getId(x, y, z);
     if (!SOLID[id]) continue;
-    const top = y + HEIGHT[id];                       // beds are lower than a full block
-    if (axis !== 1 && min[1] >= top - EPS) continue;  // standing on it, not walking into it
-    const c = [x, y, z][axis];
-    const dist = a > 0 ? c - max[axis] : min[axis] - (axis === 1 ? top : c + 1);
+    const b = cellBox(dim, id, x, y, z);
+    // must overlap on the two other axes (standing on a low bed is not walking into it)
+    let overlap = true;
+    for (let o = 0; o < 3 && overlap; o++) if (o !== axis && !(min[o] < b[o + 3] - EPS && max[o] > b[o] + EPS)) overlap = false;
+    if (!overlap) continue;
+    const dist = a > 0 ? b[axis] - max[axis] : min[axis] - b[axis + 3];
     if (dist < -EPS) continue;           // behind us / already overlapping
     if (dist < limit) limit = dist;
   }
